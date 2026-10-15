@@ -8,8 +8,8 @@ import { useWorkspace } from '@/components/workspace/context'
 import type { ActInput } from '@/lib/model/acts'
 import { seasonEvents } from '@/lib/model/ids'
 import { cn } from '@/lib/utils'
+import { filingDeadlines, nextDeadline } from './return-state'
 
-const DAY = 86_400_000
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
 
 /**
@@ -22,15 +22,13 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { m
 function SeasonTrack({ className }: { className?: string }) {
   const { model, state } = useWorkspace()
   const events = seasonEvents(model.packet, '')
-  const deadlines = model.packet.firm.deadlines
-    .filter((d) => !/internal|outside/i.test(d.what))
-    .map((d) => ({ ...d, at: Date.parse(`${d.date}T00:00:00Z`) }))
+  const deadlines = filingDeadlines(model.packet)
   const now = Date.parse(state.clock)
   const next = state.nextEvent ? Date.parse(state.nextEvent.at) : now
   const start = Math.min(Date.parse(events[0]?.at ?? state.clock), now)
   const end = Math.max(now, next, ...deadlines.map((d) => d.at))
   const x = (t: number) => `${((t - start) / (end - start || 1)) * 100}%`
-  const due = deadlines.filter((d) => d.at > now).sort((a, b) => a.at - b.at)[0]
+  const due = nextDeadline(model.packet, state.clock)
   return (
     <span className={cn('min-w-0 flex-1 items-center gap-3 pr-3', className)}>
       <span aria-hidden className="relative h-4 min-w-16 flex-1">
@@ -49,7 +47,7 @@ function SeasonTrack({ className }: { className?: string }) {
       </span>
       {due && (
         <span className="shrink-0 whitespace-nowrap text-foreground/70 tabular-nums" title={due.what}>
-          <span className="text-foreground">{shortDate(due.date)}</span> · {Math.ceil((due.at - now) / DAY)} days
+          <span className="text-foreground">{shortDate(due.date)}</span> · {due.daysLeft} days
         </span>
       )}
     </span>

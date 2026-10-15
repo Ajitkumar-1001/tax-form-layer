@@ -3,8 +3,8 @@ import type { Act } from '@/lib/model/acts'
 import type { Model } from '@/lib/model/build'
 import type { Val } from '@/lib/model/claims'
 import type { Finding } from '@/lib/model/checks/types'
-import { refKind, SEASON_START } from '@/lib/model/ids'
-import { project } from '@/lib/model/project'
+import { refKind } from '@/lib/model/ids'
+import { indexActs, project } from '@/lib/model/project'
 import type { State } from '@/lib/model/state'
 
 /** Sides: v1 | v2 | v3 | 2024 | now (v3 with live adjusts) | whatif:<id>. */
@@ -106,11 +106,9 @@ export interface SinceMe {
   summary: string
 }
 
-/** The season clock as it stood at `seq` (the last clock act at or before it). */
+/** The season clock as it stood at `seq`, read the way `project` reads it (a date-only `to` is that midnight UTC). */
 export function clockAt(acts: Act[], seq: number): string {
-  const last = acts.filter((a) => a.type === 'clock' && a.seq <= seq).at(-1)
-  const to = last && (last.body as { to?: unknown }).to
-  return typeof to === 'string' ? to : SEASON_START
+  return indexActs(acts.filter((a) => a.seq <= seq)).clock
 }
 
 const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(Math.round(n)).toLocaleString('en-US')}`

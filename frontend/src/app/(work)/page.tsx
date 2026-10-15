@@ -1,5 +1,8 @@
+import type { Metadata } from 'next'
 import { AppLoader } from '@/components/app-loader'
 
-export default function QueuePage() {
-  return <AppLoader screen="queue" />
+export const metadata: Metadata = { title: 'Overview · Workpaper' }
+
+export default function Page() {
+  return <AppLoader screen="overview" />
 }

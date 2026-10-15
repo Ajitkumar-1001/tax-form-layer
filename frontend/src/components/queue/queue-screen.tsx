@@ -212,6 +212,8 @@ export function QueueScreen() {
   return (
     <div className="grid lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)]">
       <section aria-label="Queue" className="flex min-w-0 flex-col gap-3 p-3 lg:border-r">
+        {/* The page's one h1 (the top bar's title is a link). sr-only is absolutely positioned, so the column's gap is unchanged. */}
+        <h1 className="sr-only">Queue</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <div className="relative min-w-48 flex-1">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />

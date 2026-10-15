@@ -91,7 +91,7 @@ const absStake = (f: Finding): Money2 => ({ fed: Math.abs(f.stake?.fed ?? 0), ca
 /** Money first, then severity, then a stable id so ties (B.N1 / B.N3) never wobble; numeric, so step:2 sorts before step:10. */
 const byMoney = <T>(m: (x: T) => Money2, s: (x: T) => Severity | null, id: (x: T) => string) => (a: T, b: T) =>
   big(m(b)) - big(m(a)) || sevRank(s(b)) - sevRank(s(a)) || id(a).localeCompare(id(b), undefined, { numeric: true })
-const findingOrder = byMoney<Finding>(absStake, (f) => f.severity, (f) => f.id)
+export const findingOrder = byMoney<Finding>(absStake, (f) => f.severity, (f) => f.id)
 const rowOrder = byMoney<Row>((r) => r.stake, (r) => r.severity, (r) => r.key)
 
 const CONTRADICTED = new Set<CheckFamily>([
@@ -167,7 +167,8 @@ export function claimOf(model: Model, ref: string): string | undefined {
   return pg && model.claims[pg.doc] ? pg.doc : undefined
 }
 
-const areaOfRef = (model: Model, ref: string): AreaKey | undefined => {
+/** The area a ref belongs to: `area:<key>` itself, or the area of the claim it stands for. */
+export function areaOfRef(model: Model, ref: string): AreaKey | undefined {
   if (ref.startsWith('area:')) return (AREAS as readonly string[]).includes(ref.slice(5)) ? (ref.slice(5) as AreaKey) : undefined
   const c = claimOf(model, ref)
   return c ? model.claims[c].area : undefined

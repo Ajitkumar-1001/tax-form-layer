@@ -1,7 +1,7 @@
 'use client'
 // /filing, the partner's home (spec §3.6): required steps, sign-offs, partner desk, approval, submit,
 // filings and agency results, freeze and amendment, the extension and the packet's season record.
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { CircleCheckIcon, CircleXIcon, FileTextIcon, LockIcon } from 'lucide-react'
 import { RefLink } from '@/components/atoms'
 import { ActButton } from '@/components/acts/act-host'
@@ -17,11 +17,13 @@ import { ReasonList } from './reason-link'
 import { ExtensionPanel, SeasonRecord } from './season-panels'
 import { SignoffMatrix } from './signoff-matrix'
 
+// A link to /filing#<id> lands on the heading; its scroll margin keeps it clear of the sticky header (one 56 px row from
+// lg, two rows below).
 function Panel({ id, title, hint, children }: { id: string; title: string; hint?: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3 rounded-xl p-4 ring-1 ring-foreground/10">
       <header className="flex flex-col gap-0.5">
-        <h2 id={id} className="text-base font-semibold">
+        <h2 id={id} className="scroll-mt-44 text-base font-semibold lg:scroll-mt-20">
           {title}
         </h2>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -34,6 +36,11 @@ function Panel({ id, title, hint, children }: { id: string; title: string; hint?
 export function FilingPage() {
   const { state } = useWorkspace()
   const [copy, setCopy] = useState(false)
+  // The page renders only once the workspace has booted, after the browser's own jump to #steps (or #matrix) found
+  // nothing, so jump once here.
+  useEffect(() => {
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView()
+  }, [])
   const done = state.steps.filter((s) => s.ok).length
   return (
     <div className="flex flex-col gap-5 p-6">

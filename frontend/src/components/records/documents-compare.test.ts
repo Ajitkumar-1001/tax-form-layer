@@ -82,6 +82,22 @@ describe('since I last looked', () => {
     expect(clockAt(acts, 0)).toBe('2026-06-23T06:05:00Z')
     expect(clockAt(acts, 1)).toBe('2026-07-01T00:00:00Z')
   })
+  it('reads a date-only clock act as the instant project uses', () => {
+    const acts = [act(1, 'st-03', 'clock', { to: '2026-07-01' }), act(2, 'st-03', 'clock', { to: '2026-07-15' })]
+    expect(clockAt(acts, 1)).toBe('2026-07-01T00:00:00Z')
+    expect(clockAt(acts, 1)).toBe(project(model, acts.slice(0, 1), state.viewer).clock)
+  })
+  it('does not count a finding known at the instant I last looked as newly visible', () => {
+    // No packet finding is known exactly at midnight, so add a copy of msg-08's finding known at 2026-07-01T00:00:00Z.
+    const base = model.findingsById['chk:CHK-25:msg-08']
+    const midnight = { ...base, id: 'chk:CHK-25:msg-08:midnight', knownSince: '2026-07-01T00:00:00Z' }
+    const m = { ...model, findings: [...model.findings, midnight], findingsById: { ...model.findingsById, [midnight.id]: midnight } }
+    const acts = [act(1, 'st-03', 'clock', { to: '2026-07-01' }), act(2, 'st-03', 'clock', { to: '2026-07-15' })]
+    expect(project(m, acts.slice(0, 1), state.viewer).findings[midnight.id].visible).toBe(true) // visible when I looked
+    const fresh = sinceMe(m, project(m, acts, state.viewer), 'st-01', 1).findings.map((f) => f.id)
+    expect(fresh).not.toContain(midnight.id)
+    expect(fresh).toContain('chk:CHK-25:msg-08') // known at 16:40 that day, after I looked
+  })
   it('summarises acts by others in plain language', () => {
     const s = sinceMe(model, { ...state, acts: [act(1, 'st-02', 'note'), act(2, 'st-01', 'note')] }, 'st-01', 0)
     expect(s.acts.map((a) => a.seq)).toEqual([1])

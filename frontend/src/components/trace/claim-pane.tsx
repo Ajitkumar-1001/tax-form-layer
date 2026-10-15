@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { BuiltTab } from './built'
 import { EvidenceTab } from './evidence'
 import { FindingsList } from './findings'
-import { ActionBar, ClaimHeader } from './header'
+import { ActionBar, ClaimHeader, TraceNested } from './header'
 import { HistoryTab } from './history'
 import { claimFindingIds, pageRefForms, resolveRef } from './resolve'
 import { ActView, AreaView, BatchView, DataView, EntryView, EvView, FindingView, NotFound, PageView } from './views'
@@ -58,7 +58,8 @@ export function ClaimPane({ claimRef, compact = false }: { claimRef: string; com
           Open full trace
         </Link>
       )}
-      {view}
+      {/* Compact, the pane sits inside the queue, whose h1 names the page; every view's title steps down to h2. */}
+      <TraceNested value={compact}>{view}</TraceNested>
     </div>
   )
 }

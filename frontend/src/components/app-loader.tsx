@@ -8,6 +8,7 @@ import { PageSkeleton } from '@/components/workspace/skeleton'
 
 // next/dynamic reads its options at build time, so each call spells them out as an object literal.
 const SCREENS = {
+  overview: dynamic(() => import('@/components/overview/overview-screen').then((m) => m.OverviewScreen), { ssr: false, loading: PageSkeleton }),
   queue: dynamic(() => import('@/components/queue/queue-screen').then((m) => m.QueueScreen), { ssr: false, loading: PageSkeleton }),
   records: dynamic(() => import('@/components/records/records-index').then((m) => m.RecordsIndex), { ssr: false, loading: PageSkeleton }),
   record: dynamic(() => import('@/components/records/record-view').then((m) => m.RecordView), { ssr: false, loading: PageSkeleton }),

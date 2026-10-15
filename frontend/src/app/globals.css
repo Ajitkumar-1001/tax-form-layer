@@ -4,6 +4,18 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* The rail's two widths (spec 3.2). <html data-rail> holds the person's choice ("collapsed" / "expanded", set before the
+   first paint by the root layout's script); absent, the rail is labelled from xl and icons from lg to xl. From lg exactly
+   one of the two matches; below lg neither (there is no rail). */
+@custom-variant rail-wide {
+  @media (width >= 80rem) { :root:not([data-rail="collapsed"]) & { @slot; } }
+  @media (width >= 64rem) { :root[data-rail="expanded"] & { @slot; } }
+}
+@custom-variant rail-narrow {
+  @media (width >= 64rem) and (width < 80rem) { :root:not([data-rail="expanded"]) & { @slot; } }
+  @media (width >= 64rem) { :root[data-rail="collapsed"] & { @slot; } }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

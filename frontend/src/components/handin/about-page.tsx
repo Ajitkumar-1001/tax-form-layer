@@ -1,6 +1,7 @@
-// /about (hand-in #2): the core idea and data model, what is simulated, and how AI was used. Static.
-import type { ReactNode } from 'react'
+// /about (hand-in #2): the core idea and data model, what is simulated, and how AI was used. The copy mirrors docs/core-idea.md.
+import type { CSSProperties, ReactNode } from 'react'
 import Link from 'next/link'
+import { ChainDemo } from './chain-demo'
 
 const CLAIM_EXAMPLES: [string, string][] = [
   ['a number on a form', 'F1040.26'],
@@ -47,42 +48,68 @@ const AI_USE: [string, string][] = [
   ['The human made the calls', 'The agents proposed, built and challenged each other; a person chose the design, the scope and what to cut.'],
 ]
 
-const DIAGRAM = `packet.json  (sealed, sha256-pinned; the only copy of client data)
-  │  server masks SSNs, bank numbers, IP PINs → tokens of kind · last 4 · equality tag
-  │  (equal tags = equal values, so even an uncleared preparer can see •••3309 ≠ •••3390)
-  ▼
-buildModel(masked) → claims + findings from engine-free checks          pure TypeScript
-  ▼
-acts  (Postgres table, append-only by trigger, SHA-256 hash chain)
-  ▼
-project(model, acts, viewer) → State: status per claim, effective values, tax effects,
-                                       open items, sign-off validity, gates, inbox, view log`
+const FLOW: [string, string][] = [
+  ['The packet', 'Sealed and SHA-256 pinned: the only copy of client data. The server masks SSNs, bank numbers and IP PINs into tokens of kind, last four and an equality tag, so even an uncleared preparer can see •••3309 and •••3390 differ.'],
+  ['Claims', 'buildModel turns the masked packet into claims and runs the engine-free checks on them. Pure TypeScript, the same in the browser and on the server.'],
+  ['Acts', 'A Postgres table, append-only by trigger, each row hash-chained to the one before it. Undo is another row.'],
+  ['Screens', 'project(model, acts, viewer) computes the status of every claim, effective values, tax effects, open items, sign-off validity, gates, the inbox and the view log.'],
+]
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+/** Position in the entrance: each part rises 70 ms after the one before (the .rise class in globals.css). */
+const at = (i: number) => ({ '--i': i }) as CSSProperties
+
+const Code = ({ children }: { children: ReactNode }) => <code className="font-mono text-[0.9em]">{children}</code>
+
+/** A heading on the left that stays in view while its text runs on the right. */
+function Chapter({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-base font-semibold">{title}</h2>
-      {children}
+    <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-16">
+      <h2 className="text-3xl font-semibold tracking-tight lg:sticky lg:top-8 lg:self-start lg:text-4xl">{title}</h2>
+      <div className="flex max-w-2xl flex-col gap-5 text-base leading-relaxed">{children}</div>
     </section>
+  )
+}
+
+function Terms({ items }: { items: [string, string][] }) {
+  return (
+    <dl className="grid gap-x-16 gap-y-10 lg:grid-cols-2">
+      {items.map(([what, how]) => (
+        <div key={what} className="flex flex-col gap-2">
+          <dt className="text-xl font-semibold">{what}</dt>
+          <dd className="text-base leading-relaxed">{how}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
 export function AboutPage() {
   return (
-    <article className="mx-auto flex max-w-3xl flex-col gap-8 p-6 text-sm leading-relaxed">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-xl font-semibold">A return is a list of claims, and the workpaper clears them</h1>
-        <p className="text-muted-foreground">
-          How to read this workpaper in five minutes: the core idea, the data model, what is simulated, and how AI was used.
-        </p>
+    <article className="mx-auto flex max-w-6xl flex-col gap-20 px-4 pt-8 pb-24 sm:px-6 lg:gap-28 lg:pt-16">
+      <header className="grid items-start gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-14">
+        <div className="flex flex-col gap-6">
+          <h1 style={at(0)} className="rise text-5xl leading-none font-semibold tracking-tight text-balance sm:text-6xl xl:text-8xl">
+            Every number has a proof.
+          </h1>
+          <p style={at(1)} className="rise max-w-xl text-2xl">
+            A return is a list of claims, and the workpaper clears them.
+          </p>
+          <p style={at(2)} className="rise max-w-xl text-base">
+            How to read this workpaper in five minutes: the core idea, the data model, what is simulated, and how AI was used.
+          </p>
+        </div>
+        <div style={at(3)} className="rise">
+          <ChainDemo />
+        </div>
       </header>
 
-      <Section title="The idea">
+      <Chapter title="The idea">
         <p>A claim is anything that must be true for the return to be right:</p>
-        <ul className="ml-5 list-disc">
+        <ul className="grid gap-px sm:grid-cols-2">
           {CLAIM_EXAMPLES.map(([what, id]) => (
-            <li key={id}>
-              {what} (<code className="font-mono text-xs">{id}</code>)
+            <li key={id} className="flex min-w-0 flex-col gap-1 bg-foreground/[0.05] p-4">
+              <code className="font-mono text-xl font-medium break-all sm:text-2xl">{id}</code>
+              <span className="text-base">{what}</span>
             </li>
           ))}
         </ul>
@@ -96,13 +123,13 @@ export function AboutPage() {
           Each row is hash-chained to the one before it.
         </p>
         <p>
-          <strong>Every screen is computed from packet + log.</strong> One pure function, <code className="font-mono text-xs">project(model, acts, viewer)</code>,
-          produces everything the screens need. The browser runs it for speed; the server runs the same code to enforce the firm&rsquo;s rules before
-          an act is accepted. So &ldquo;who changed this, why, and what did it do to the tax?&rdquo;, &ldquo;what changed since I last looked?&rdquo; and
-          &ldquo;what was signed?&rdquo; all have the same answer source.
+          <strong>Every screen is computed from packet + log.</strong> One pure function, <Code>project(model, acts, viewer)</Code>, produces everything
+          the screens need. The browser runs it for speed; the server runs the same code to enforce the firm&rsquo;s rules before an act is accepted.
+          So &ldquo;who changed this, why, and what did it do to the tax?&rdquo;, &ldquo;what changed since I last looked?&rdquo; and &ldquo;what was
+          signed?&rdquo; all have the same answer source.
         </p>
         <p>Engine-free checks attach problems to claims, for example:</p>
-        <ul className="ml-5 list-disc">
+        <ul className="flex list-disc flex-col gap-1 pl-5">
           {CHECK_EXAMPLES.map((c) => (
             <li key={c}>{c}</li>
           ))}
@@ -112,74 +139,82 @@ export function AboutPage() {
           <strong>Sign-offs fingerprint exactly what they covered,</strong> values and evidence together, and reopen themselves when either changes.
           Nobody unchecks a box.
         </p>
-      </Section>
+      </Chapter>
 
-      <Section title="Why not a spreadsheet">
-        <p>
-          A spreadsheet stores <em>results</em>. The workpaper&rsquo;s job is to prove <em>why each result is right</em>, and that proof is relational: a
-          number connects to its source page, to how it was built, to who checked it, to the client message that changed it, and to last year.
-          Storing claims plus acts makes every one of those questions a lookup, not a document someone has to keep in sync.
+      <Chapter title="Why not a spreadsheet">
+        <p className="text-xl leading-snug">
+          A spreadsheet stores <em>results</em>. The workpaper&rsquo;s job is to prove <em>why each result is right</em>.
         </p>
-      </Section>
+        <p>
+          That proof is relational: a number connects to its source page, to how it was built, to who checked it, to the client message that changed
+          it, and to last year. Storing claims plus acts makes every one of those questions a lookup, not a document someone has to keep in sync.
+        </p>
+      </Chapter>
 
-      <Section title="Data model">
-        <pre className="overflow-x-auto rounded-lg bg-muted p-4 font-mono text-xs leading-snug" aria-label="Data flow from the sealed packet to the screens">
-          {DIAGRAM}
-        </pre>
+      <section className="flex flex-col gap-10 bg-foreground p-6 text-background sm:p-10 lg:p-16" aria-labelledby="flow-h">
+        <h2 id="flow-h" className="text-3xl font-semibold tracking-tight lg:text-4xl">
+          Data model
+        </h2>
+        <ol className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+          {FLOW.map(([title, text], i) => (
+            <li key={title} className="flex flex-col gap-3">
+              <span aria-hidden className="text-6xl leading-none font-semibold tabular-nums">
+                {i + 1}
+              </span>
+              <h3 className="text-xl font-semibold">{title}</h3>
+              <p className="text-base leading-relaxed">{text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <Chapter title="What is stored, and what is enforced">
         <p>
           <strong>acts</strong>: seq, id, engagement, recorded_at (wall clock), season_at (season clock), actor, actor_role, type, target, refs[], body,
           derived, batch_id, prev_hash, hash.
         </p>
-        <ul className="ml-5 list-disc">
+        <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>
-            <code className="font-mono text-xs">type</code> is one of the Zod-validated act kinds.
+            <Code>type</Code> is one of the Zod-validated act kinds.
           </li>
           <li>
-            <code className="font-mono text-xs">target</code> and <code className="font-mono text-xs">refs</code> use the packet&rsquo;s own reference formats
-            (ev-0498, D28, F8949.B.N1, qa-41, py:/…, agency:/…).
+            <Code>target</Code> and <Code>refs</Code> use the packet&rsquo;s own reference formats (ev-0498, D28, F8949.B.N1, qa-41, py:/…, agency:/…).
           </li>
           <li>
-            <code className="font-mono text-xs">derived</code> is computed only by the server: tax effect, partner routing, fingerprints, approval hashes.
+            <Code>derived</Code> is computed only by the server: tax effect, partner routing, fingerprints, approval hashes.
           </li>
         </ul>
         <p>Rules enforced on the server, in the same transaction that writes the act:</p>
-        <ul className="ml-5 list-disc">
-          {RULES.map((r) => (
-            <li key={r}>{r}</li>
+        <ol className="flex flex-col gap-px">
+          {RULES.map((r, i) => (
+            <li key={r} className="flex gap-4 bg-foreground/[0.05] p-4">
+              <span aria-hidden className="w-6 shrink-0 text-xl font-semibold tabular-nums">
+                {i + 1}
+              </span>
+              <span>{r}</span>
+            </li>
           ))}
-        </ul>
-      </Section>
+        </ol>
+      </Chapter>
 
-      <Section title="What is simulated">
-        <dl className="grid gap-3">
-          {SIMULATED.map(([what, how]) => (
-            <div key={what} className="grid gap-0.5">
-              <dt className="font-medium">{what}</dt>
-              <dd className="text-muted-foreground">{how}</dd>
-            </div>
-          ))}
-        </dl>
-      </Section>
+      <section className="flex flex-col gap-8">
+        <h2 className="text-3xl font-semibold tracking-tight lg:text-4xl">What is simulated</h2>
+        <Terms items={SIMULATED} />
+      </section>
 
-      <Section title="How AI was used">
-        <dl className="grid gap-3">
-          {AI_USE.map(([what, how]) => (
-            <div key={what} className="grid gap-0.5">
-              <dt className="font-medium">{what}</dt>
-              <dd className="text-muted-foreground">{how}</dd>
-            </div>
-          ))}
-        </dl>
-      </Section>
+      <section className="flex flex-col gap-8">
+        <h2 className="text-3xl font-semibold tracking-tight lg:text-4xl">How AI was used</h2>
+        <Terms items={AI_USE} />
+      </section>
 
-      <footer className="flex flex-wrap gap-4 border-t pt-4 text-muted-foreground">
-        <Link href="/errors" className="text-primary underline-offset-2 hover:underline">
+      <footer className="flex flex-wrap gap-x-8 gap-y-3 text-lg">
+        <Link href="/errors" className="underline underline-offset-4 hover:text-primary">
           The errors found and how they surfaced
         </Link>
-        <Link href="/filing" className="text-primary underline-offset-2 hover:underline">
+        <Link href="/filing" className="underline underline-offset-4 hover:text-primary">
           The filing desk
         </Link>
-        <Link href="/" className="text-primary underline-offset-2 hover:underline">
+        <Link href="/queue" className="underline underline-offset-4 hover:text-primary">
           The queue
         </Link>
       </footer>

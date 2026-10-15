@@ -2,6 +2,7 @@
 // Staff shell: where you are, who you are, when it is, and what blocks filing (spec §3.0).
 import { Fragment, Suspense, type ReactNode } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { CircleCheckIcon, OctagonAlertIcon } from 'lucide-react'
 import { RefLink } from '@/components/atoms/ref-link'
 import { useWorkspace } from '@/components/workspace/context'
@@ -12,6 +13,8 @@ import { CommandPalette } from './command-palette'
 import { Inbox } from './inbox'
 import { Nav } from './nav'
 import { ClaimSpectrum, Rail, StageMeter } from './rail'
+import { RailToggle, useRailShortcut } from './rail-toggle'
+import { spectrum } from './return-state'
 import { RoleSwitcher } from './role-switcher'
 import { SeasonClock } from './season-clock'
 
@@ -26,6 +29,7 @@ const GATE_REASONS_SHOWN = 4
 // (season-clock.tsx). Below lg there is no rail: the header adds a menu row, the claim spectrum on its edge, and the
 // gate bar sits at the foot. `dark` scopes the dark tokens to the chrome; popovers portal out and stay light.
 export function AppShell({ children }: { children: ReactNode }) {
+  useRailShortcut()
   return (
     <div className="flex min-h-svh flex-1">
       <a
@@ -48,7 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Suspense>
           </div>
           <Suspense>
-            <ClaimSpectrum className="absolute inset-x-0 bottom-0 h-[3px] lg:hidden" />
+            <HeaderSpectrum />
           </Suspense>
         </header>
         <Suspense>
@@ -67,12 +71,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function TopBar() {
   const { model, state, engagement } = useWorkspace()
-  // From lg one 56 px row. Below xl the title leads it (from xl the rail carries it); from xl the season fills the row.
+  // From lg one 56 px row, the rail's toggle at its left. The title leads it whenever the rail shows icons only (when the
+  // rail is labelled, it carries the title: rail-wide), so the name shows exactly once. The season fills the row from xl
+  // (beside the title when the rail is collapsed) and whenever the title is away.
   // Below lg the stage and the clock drop to their own row (order-last) so the title and the controls keep a row to
   // themselves; lg:contents dissolves that row's wrapper.
   return (
     <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 lg:h-14 lg:flex-nowrap lg:gap-x-4 lg:py-0 xl:px-6">
-      <div className="flex min-w-0 flex-1 items-center gap-3 xl:hidden">
+      <RailToggle placement="topbar" />
+      <div className="flex min-w-0 flex-1 items-center gap-3 xl:flex-initial rail-wide:hidden">
         <Link
           href="/"
           className="flex min-w-0 items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-foreground"
@@ -90,7 +97,7 @@ function TopBar() {
         <span className="lg:hidden">
           <StageMeter stage={state.stage} marks="hidden sm:flex" />
         </span>
-        <SeasonClock className="flex-1 lg:flex-none xl:flex-1" />
+        <SeasonClock className="flex-1 lg:flex-none xl:flex-1 rail-wide:flex-1" />
       </div>
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <CommandPalette />
@@ -99,6 +106,12 @@ function TopBar() {
       </div>
     </div>
   )
+}
+
+// Below lg the claim spectrum runs along the header's bottom edge; from lg it sits in the rail's foot.
+function HeaderSpectrum() {
+  const { state } = useWorkspace()
+  return <ClaimSpectrum parts={spectrum(state).parts} className="absolute inset-x-0 bottom-0 h-[3px] lg:hidden" />
 }
 
 function ClientBanner() {
@@ -112,9 +125,12 @@ function ClientBanner() {
   )
 }
 
-// Below lg only: from lg the rail's foot carries the gate (rail.tsx).
+// Below lg only: from lg the rail's foot carries the gate (rail.tsx). Not on the overview (/): its blockers section lists
+// the same reasons.
 function GateBar() {
+  const pathname = usePathname()
   const { state, packetSha, engagement } = useWorkspace()
+  if (pathname === '/') return null
   const gate = state.gates.submit
   const shown = gate.reasons.slice(0, GATE_REASONS_SHOWN)
   const more = gate.reasons.length - shown.length

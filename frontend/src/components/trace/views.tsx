@@ -237,7 +237,7 @@ export function NotFound({ refId, what }: { refId: string; what?: string }) {
         {what ?? <>No line, document, page, value, client answer, fact, step, finding or act is called <span className="font-mono">{refId || '(empty)'}</span>.</>}
       </p>
       <p className="text-sm">
-        <Link href="/" className="text-primary underline-offset-2 hover:underline">Back to the queue</Link> or press ⌘K to search.
+        <Link href="/queue" className="text-primary underline-offset-2 hover:underline">Back to the queue</Link> or press ⌘K to search.
       </p>
     </div>
   )

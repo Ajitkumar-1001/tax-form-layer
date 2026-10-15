@@ -1,6 +1,6 @@
 'use client'
 // Trace header: what the claim is, its value now and before, status, support, timing, effect, and the acts.
-import type { ReactNode } from 'react'
+import { createContext, type ReactNode, use } from 'react'
 import { ActButton } from '@/components/acts/act-host'
 import { formatClock } from '@/components/atoms/format'
 import { Stake } from '@/components/atoms/money'
@@ -18,14 +18,18 @@ const KIND_LABEL: Record<ClaimKind, string> = {
   whatif: 'Engine alternative', diag: 'Engine diagnostic', prior_item: 'Prior-preparer item',
 }
 
+/** True when the trace sits inside a page that owns the h1 (the queue's compact pane); its title is then an h2. */
+export const TraceNested = createContext(false)
+
 export function TraceTitle({ refId, kind, label, children }: { refId: string; kind: string; label: ReactNode; children?: ReactNode }) {
+  const Heading = use(TraceNested) ? 'h2' : 'h1'
   return (
     <header className="flex min-w-0 flex-col gap-1">
       <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
         <span>{kind}</span>
         <span className="font-mono text-foreground">{refId}</span>
       </p>
-      <h1 className="text-lg leading-snug font-semibold text-balance">{label}</h1>
+      <Heading className="text-lg leading-snug font-semibold text-balance">{label}</Heading>
       {children}
     </header>
   )

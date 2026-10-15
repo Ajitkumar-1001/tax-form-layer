@@ -44,7 +44,7 @@ export function offerUndo(model: Model, held: Act[], posted: Act[], viewer: View
   }
 }
 
-const VERB: Record<ActType, string> = {
+export const VERB: Record<ActType, string> = {
   verify: 'Verified', adjust: 'Adjusted', decide: 'Decision recorded', dispose: 'Disposed', note: 'Note added',
   reply: 'Replied', resolve: 'Resolved', attach: 'Attached', signoff: 'Signed off', request_approval: 'Approval requested',
   client_approve: 'Approved', file: 'Filed', amend_open: 'Amendment opened', revert: 'Reverted', assign: 'Assigned',

@@ -2,12 +2,13 @@
 import { Fragment, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BugIcon, Building2Icon, FileTextIcon, GitCompareIcon, InfoIcon, ListTodoIcon, MailWarningIcon, SendIcon, TableIcon, UserIcon } from 'lucide-react'
+import { BugIcon, Building2Icon, FileTextIcon, GitCompareIcon, InfoIcon, LayoutDashboardIcon, ListTodoIcon, MailWarningIcon, SendIcon, TableIcon, UserIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // The icons show in the rail (rail.tsx, alone from lg, beside the label from xl) and in the command palette ("Go to").
 export const NAV = [
-  { href: '/', label: 'Queue', icon: ListTodoIcon },
+  { href: '/', label: 'Overview', icon: LayoutDashboardIcon },
+  { href: '/queue', label: 'Queue', icon: ListTodoIcon },
   { href: '/documents', label: 'Documents', icon: FileTextIcon },
   { href: '/records', label: 'Records', icon: TableIcon },
   { href: '/compare', label: 'Compare', icon: GitCompareIcon },
@@ -31,7 +32,7 @@ function centreIn(tab: HTMLElement) {
   dock.scrollLeft = left - (dock.clientWidth - tab.offsetWidth) / 2
 }
 
-/** Whether `href` is the screen at `pathname` (a screen owns its sub-paths; the queue is "/" alone). */
+/** Whether `href` is the screen at `pathname` (a screen owns its sub-paths; the overview is "/" alone). */
 export function isCurrent(href: string, pathname: string) {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`)
 }

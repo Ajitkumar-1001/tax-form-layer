@@ -1,7 +1,7 @@
 'use client'
 // /firm, the firm administrator's home (spec §3.9): view log, time against budget, standards, staff,
 // engagements (fresh copy) and assignments.
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { ShieldCheckIcon, ShieldOffIcon } from 'lucide-react'
 import { RefLink } from '@/components/atoms'
 import { ActButton } from '@/components/acts/act-host'
@@ -10,11 +10,13 @@ import { useWorkspace } from '@/components/workspace/context'
 import { cn } from '@/lib/utils'
 import { areaName, budgetOnly, hours, timeByPerson, viewLogRows } from './firm-logic'
 
+// A link to /firm#<id> lands on the heading; its scroll margin keeps it clear of the sticky header (one 56 px row from
+// lg, two rows below).
 function Panel({ id, title, hint, children }: { id: string; title: string; hint?: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3 rounded-xl p-4 ring-1 ring-foreground/10">
       <header className="flex flex-col gap-0.5">
-        <h2 id={id} className="text-base font-semibold">
+        <h2 id={id} className="scroll-mt-44 text-base font-semibold lg:scroll-mt-20">
           {title}
         </h2>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -28,6 +30,11 @@ const TH = 'px-2 py-1.5 text-left text-xs font-medium text-muted-foreground'
 const TD = 'px-2 py-1.5 align-top'
 
 export function FirmPage() {
+  // The page renders only once the workspace has booted (its panels wait for it), after the browser's own jump to #time
+  // (or #engagements) found nothing, so jump once here.
+  useEffect(() => {
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView()
+  }, [])
   return (
     <div className="flex flex-col gap-5 p-6">
       <h1 className="text-lg font-semibold">Firm</h1>

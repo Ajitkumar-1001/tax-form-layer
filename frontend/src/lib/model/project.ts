@@ -102,6 +102,9 @@ export function whatIfCites(state: State, id: string): Act[] {
 
 const isNoticeResponse = (a: Act) => a.type === 'decide' && (a.body as Body<'decide'>).kind === 'notice_response'
 
+/** Logged hours to the hundredth, so a sum of decimal time acts (0.4 + 0.8 + 0.3) meets its budget exactly instead of passing it by float noise. */
+export const roundHours = (n: number): number => Math.round(n * 100) / 100
+
 /** Sign-off scope: the area's claims, or every claim for `return`. */
 export function scopeOf(model: Model, target: string): string[] {
   return model.claimList.filter((c) => target === 'return' || `area:${c.area}` === target).map((c) => c.id)
@@ -593,7 +596,7 @@ export function project(model: Model, acts: Act[], viewer: Viewer, engagement = 
       key, label: AREA_LABEL[key], claims: inArea.length, open: inArea.filter((c) => claims[c.id].status === 'open').length,
       findingsOpen: areaFindings.length,
       signoffs: Object.fromEntries((['preparer', 'reviewer', 'partner'] as const).flatMap((l) => (latest(l) ? [[l, latest(l)]] : []))),
-      assignee: assignments[key], hours: hours[key] ?? 0, budget: p.firm.budget_hours[key] ?? null,
+      assignee: assignments[key], hours: roundHours(hours[key] ?? 0), budget: p.firm.budget_hours[key] ?? null,
       done: [
         item('Every document landed or disposed', ids(known.filter((c) => c.kind === 'doc' && !model.landedIn[c.id]?.length && !claims[c.id].disposition))),
         item('Every leaf line verified, accepted or adjusted', ids(known.filter((c) => c.kind === 'line' && c.inputs.length === 0 && !lastAdjust[c.id] && !verifiedBy(c.id)))),
