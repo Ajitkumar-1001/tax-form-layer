@@ -6,81 +6,91 @@ import { CircleCheckIcon, OctagonAlertIcon } from 'lucide-react'
 import { RefLink } from '@/components/atoms/ref-link'
 import { useWorkspace } from '@/components/workspace/context'
 import { PageSkeleton, TopBarSkeleton } from '@/components/workspace/skeleton'
-import type { Reason, Stage } from '@/lib/model/state'
+import type { Reason } from '@/lib/model/state'
 import { cn } from '@/lib/utils'
 import { CommandPalette } from './command-palette'
 import { Inbox } from './inbox'
 import { Nav } from './nav'
+import { ClaimSpectrum, Rail, StageMeter } from './rail'
 import { RoleSwitcher } from './role-switcher'
 import { SeasonClock } from './season-clock'
-
-const STAGE: Record<Stage, { label: string; className: string }> = {
-  preparation: { label: 'Preparation', className: 'bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200' },
-  review: { label: 'Review', className: 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200' },
-  partner: { label: 'Partner review', className: 'bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200' },
-  approval: { label: 'Client approval', className: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200' },
-  filed: { label: 'Filed', className: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200' },
-  amending: { label: 'Amending', className: 'bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200' },
-}
 
 const GATE_REASONS_SHOWN = 4
 
 // The frame itself reads nothing that loads, so it and the page below it render on the server (Next.js
 // validates instant navigation against that render). Each part that reads the workspace waits in its own
-// <Suspense>; the one around the page holds pages that wait without a boundary of their own.
+// <Suspense>. Every route renders <AppLoader> (components/app-loader.tsx), which brings its own browser-only boundary,
+// so the one around the page is a guard only: a page that reads the workspace directly waits here, not in the whole app.
+//
+// From lg: the dark rail (rail.tsx) and a dark 56 px top bar frame the light page; the top bar's centre is the season
+// (season-clock.tsx). Below lg there is no rail: the header adds a menu row, the claim spectrum on its edge, and the
+// gate bar sits at the foot. `dark` scopes the dark tokens to the chrome; popovers portal out and stay light.
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh flex-1 flex-col">
+    <div className="flex min-h-svh flex-1">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-1.5 focus:text-sm focus:font-medium focus:shadow-md focus:ring-2 focus:ring-ring"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-full focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-foreground"
       >
         Skip to content
       </a>
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
-        <Suspense fallback={<TopBarSkeleton />}>
-          <TopBar />
+      <Rail />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* The queue's sticky claim pane (lg:top-14) assumes the 56 px top bar from lg. Hidden in print: the printed
+            workpaper is the report, not the app chrome. */}
+        <header className="dark sticky top-0 z-40 bg-background text-foreground [color-scheme:dark] print:hidden">
+          <Suspense fallback={<TopBarSkeleton />}>
+            <TopBar />
+          </Suspense>
+          <div className="flex h-12 items-start px-4 max-lg:pointer-coarse:h-14 lg:hidden">
+            <Suspense fallback={<div className="flex-1" />}>
+              <Nav />
+            </Suspense>
+          </div>
+          <Suspense>
+            <ClaimSpectrum className="absolute inset-x-0 bottom-0 h-[3px] lg:hidden" />
+          </Suspense>
+        </header>
+        <Suspense>
+          <ClientBanner />
         </Suspense>
-        <Suspense fallback={<div className="h-9" />}>
-          <Nav />
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+          <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
+        </main>
+        <Suspense fallback={<div className="sticky bottom-0 h-7 border-t bg-muted/40 lg:hidden" />}>
+          <GateBar />
         </Suspense>
-      </header>
-      <Suspense>
-        <ClientBanner />
-      </Suspense>
-      <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
-        <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
-      </main>
-      <Suspense fallback={<div className="sticky bottom-0 h-7 border-t bg-muted/40" />}>
-        <GateBar />
-      </Suspense>
+      </div>
     </div>
   )
 }
 
 function TopBar() {
   const { model, state, engagement } = useWorkspace()
-  const stage = STAGE[state.stage]
-  const pill = <span className={cn('inline-flex h-5 shrink-0 items-center rounded-full px-2 text-xs font-medium', stage.className)}>{stage.label}</span>
-  // From lg up this is one 48 px row (the queue's sticky claim pane, lg:top-21, assumes 48 + the 36 px nav).
-  // Below lg the stage and the clock drop to their own row (order-last) so the title and the controls keep a row
-  // to themselves; lg:contents dissolves that row's wrapper and the pill shows beside the title instead.
+  // From lg one 56 px row. Below xl the title leads it (from xl the rail carries it); from xl the season fills the row.
+  // Below lg the stage and the clock drop to their own row (order-last) so the title and the controls keep a row to
+  // themselves; lg:contents dissolves that row's wrapper.
   return (
-    <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-1.5 lg:flex-nowrap">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <Link href="/" className="min-w-0 truncate text-sm font-semibold tracking-tight" title={model.packet.packet.client_id}>
-          {model.packet.packet.name}
+    <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 lg:h-14 lg:flex-nowrap lg:gap-x-4 lg:py-0 xl:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-3 xl:hidden">
+        <Link
+          href="/"
+          className="flex min-w-0 items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-foreground"
+          title={model.packet.packet.client_id}
+        >
+          <span className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-foreground">{model.packet.packet.name}</span>
         </Link>
-        <span className="hidden lg:contents">{pill}</span>
         {engagement !== 'main' && (
-          <span className="shrink-0 rounded-full px-2 text-xs text-muted-foreground ring-1 ring-border" title="A fresh copy with its own act log">
-            copy {engagement}
+          <span className="shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-xs text-foreground ring-1 ring-inset ring-foreground/10" title="A fresh copy with its own act log">
+            {engagement}
           </span>
         )}
       </div>
-      <div className="order-last flex w-full items-center gap-2 lg:contents">
-        <span className="lg:hidden">{pill}</span>
-        <SeasonClock className="flex-1 lg:flex-none" />
+      <div className="order-last flex w-full items-center gap-3 lg:contents">
+        <span className="lg:hidden">
+          <StageMeter stage={state.stage} marks="hidden sm:flex" />
+        </span>
+        <SeasonClock className="flex-1 lg:flex-none xl:flex-1" />
       </div>
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <CommandPalette />
@@ -102,6 +112,7 @@ function ClientBanner() {
   )
 }
 
+// Below lg only: from lg the rail's foot carries the gate (rail.tsx).
 function GateBar() {
   const { state, packetSha, engagement } = useWorkspace()
   const gate = state.gates.submit
@@ -110,7 +121,7 @@ function GateBar() {
   return (
     <footer
       className={cn(
-        'sticky bottom-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t px-4 py-1.5 text-xs sm:flex-nowrap',
+        'sticky bottom-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t px-4 py-1.5 text-xs sm:flex-nowrap lg:hidden',
         gate.ok ? 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-50' : 'bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-50',
       )}
     >

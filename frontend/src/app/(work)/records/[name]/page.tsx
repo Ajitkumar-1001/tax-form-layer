@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
-import { RecordView } from '@/components/records/record-view'
 import { RECORDS, recordInfo } from '@/components/records/registry'
+import { notFound } from 'next/navigation'
+import { AppLoader } from '@/components/app-loader'
 
 // Static metadata: params in generateMetadata() would block prefetching the route.
 export const metadata: Metadata = { title: 'Record · Workpaper' }
@@ -18,5 +18,5 @@ export function generateStaticParams(): { name: string }[] {
 export default async function Page({ params }: Props) {
   const { name } = await params
   if (!recordInfo(name)) notFound()
-  return <RecordView name={name} />
+  return <AppLoader screen="record" name={name} />
 }

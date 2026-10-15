@@ -48,7 +48,7 @@ export function CellView({ cell, context }: { cell: Cell; context: string }) {
   )
   return (
     <>
-      {cell.ref ? <RefLink to={cell.ref}>{body ?? cell.ref}</RefLink> : body ?? (cell.refs?.length ? null : <span className="text-muted-foreground/50">—</span>)}
+      {cell.ref ? <RefLink to={cell.ref}>{body ?? cell.ref}</RefLink> : body ?? (cell.refs?.length ? null : <span className="text-muted-foreground">—</span>)}
       {cell.refs?.length ? (
         <span className="ml-1 inline-flex flex-wrap gap-x-1.5">
           {cell.refs.map((r) => (

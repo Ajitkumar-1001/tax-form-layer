@@ -43,7 +43,7 @@ export function RoleSwitcher() {
   return (
     <Select value={viewer.id} onValueChange={(v) => void choose(v)} disabled={busy}>
       <SelectTrigger
-        className="max-w-56 cursor-pointer gap-2 py-0 pl-1.5 data-[size=default]:h-9 max-lg:pointer-coarse:data-[size=default]:h-11"
+        className="max-w-56 cursor-pointer gap-2 rounded-full border-transparent bg-muted py-0 pr-3 pl-1 text-foreground ring-1 ring-inset ring-foreground/10 transition-colors duration-200 hover:bg-foreground/[0.08] aria-expanded:bg-foreground/[0.08] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-foreground motion-reduce:transition-none data-[size=default]:h-8 max-lg:pointer-coarse:data-[size=default]:h-11 dark:bg-muted dark:hover:bg-foreground/[0.08] [&_svg]:text-foreground/60"
         aria-label={`Acting as ${viewer.name}, ${ROLE[viewer.role]}. Demo identity, not authentication`}
       >
         <SelectValue>
@@ -51,13 +51,13 @@ export function RoleSwitcher() {
             const v = identities.find((i) => i.id === id) ?? viewer
             return (
               <>
-                <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-full bg-foreground text-xs font-semibold text-background">
                   {initials(v.name)}
                 </span>
-                {/* Below sm only the avatar shows; the text stays for screen readers. */}
+                {/* Below sm only the avatar shows (this text is visually hidden); the trigger's aria-label carries name and role. */}
                 <span className="flex min-w-0 flex-col text-left leading-tight max-sm:sr-only">
                   <span className="truncate text-[13px] font-medium">{v.name}</span>
-                  <span className="truncate text-[11px] text-muted-foreground">
+                  <span className="truncate text-xs text-foreground/70">
                     {ROLE[v.role]}
                     {v.kind === 'staff' && !v.clearance ? ' · no clearance' : ''}
                   </span>
@@ -67,7 +67,7 @@ export function RoleSwitcher() {
           }}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent align="end" alignItemWithTrigger={false} className="w-auto min-w-80">
+      <SelectContent align="end" alignItemWithTrigger={false} className="w-auto min-w-80 rounded-xl bg-popover/90 shadow-lg backdrop-blur-xl">
         <SelectGroup>
           <SelectLabel>Firm staff · demo identity, not authentication</SelectLabel>
           {identities.filter((v) => v.kind === 'staff').map(item)}
@@ -88,7 +88,7 @@ function Clearance({ cleared }: { cleared: boolean }) {
     <span
       title={cleared ? 'Cleared for sensitive data (SSNs, bank numbers)' : 'No sensitive-data clearance: reveals are refused'}
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-full px-1.5 text-[10px] font-medium',
+        'inline-flex items-center gap-0.5 rounded-full px-1.5 text-xs font-medium',
         cleared ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200',
       )}
     >

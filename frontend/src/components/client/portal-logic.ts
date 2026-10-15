@@ -52,3 +52,20 @@ export function signState(model: Model, state: State, clientId: string): SignSta
   const waitingFor = model.packet.firm.client_users.filter((u) => !signed(u.id)).map((u) => u.name)
   return { kind: 'signed', requestSeq: ap.request_seq, waitingFor }
 }
+
+const things = (n: number, one: string, many: string) => (n === 1 ? one : `${n} ${many}`)
+
+/**
+ * The one-line answer to "what do I do now?", for the top of the portal. `questions` are the open questions to this
+ * client and `requested` the items the firm asked for beyond them; both are what is left for the client to do.
+ */
+export function portalHeadline(questions: number, requested: number, sign: SignState): string {
+  if (sign.kind === 'filed') return 'Your return has been filed.'
+  if (sign.kind === 'signed') return 'You have signed.'
+  if (sign.kind === 'changed') return 'Some amounts changed.'
+  const todo = questions + requested
+  if (sign.kind === 'ready') return todo === 0 ? 'Your return is ready to sign.' : `${things(todo, 'One thing', 'things')} to do, then sign.`
+  if (todo === 0) return 'Nothing for you to do right now.'
+  if (requested === 0) return `${things(questions, 'One question needs', 'questions need')} your answer.`
+  return `We still need ${things(todo, 'one item', 'items')} from you.`
+}

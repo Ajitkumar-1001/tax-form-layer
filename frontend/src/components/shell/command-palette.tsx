@@ -42,14 +42,15 @@ export function CommandPalette() {
   return (
     <>
       <Button
-        variant="outline"
-        className="cursor-pointer gap-2 text-muted-foreground max-lg:pointer-coarse:h-11 max-lg:pointer-coarse:min-w-11"
+        variant="ghost"
+        className="cursor-pointer gap-2 rounded-full bg-muted px-3 text-foreground/75 ring-1 ring-inset ring-foreground/10 transition-colors duration-200 hover:bg-foreground/[0.08] hover:text-foreground focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-foreground motion-reduce:transition-none max-lg:pointer-coarse:h-11 max-lg:pointer-coarse:min-w-11"
         onClick={() => setOpen(true)}
         aria-label="Search refs and labels (⌘K)"
       >
         <SearchIcon />
-        <span className="hidden xl:inline">Search refs and labels</span>
-        <Kbd className="hidden md:inline-flex">⌘K</Kbd>
+        <span className="hidden 2xl:inline">Search refs and labels</span>
+        {/* The hint shows from xl, the label from 2xl; below xl the button is the icon alone. Both keep the title whole. */}
+        <Kbd className="hidden bg-background text-foreground/70 ring-1 ring-inset ring-foreground/10 xl:inline-flex">⌘K</Kbd>
       </Button>
       <CommandDialog open={open} onOpenChange={setOpen} title="Search the workpaper" description="Find a line, document, household fact or client answer by ref or label" className="sm:max-w-2xl">
         <Command shouldFilter={false}>

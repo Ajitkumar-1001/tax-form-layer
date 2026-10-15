@@ -347,7 +347,7 @@ export function QueueScreen() {
       </section>
 
       <aside aria-label="Selected claim" className={cn('min-w-0 border-t lg:border-t-0', !selected && 'hidden lg:block')}>
-        <div className="lg:sticky lg:top-21 lg:max-h-[calc(100svh-7.5rem)] lg:overflow-y-auto">
+        <div className="lg:sticky lg:top-14 lg:max-h-[calc(100svh-3.5rem)] lg:overflow-y-auto">
           {selected ? (
             <>
               <div className="flex items-center gap-2 border-b px-3 py-1.5 text-xs">

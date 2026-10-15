@@ -139,7 +139,7 @@ function DocRowView({ row: r, checked, onToggle }: { row: DocRow; checked: boole
           <span className={r.unlanded ? 'text-red-700 dark:text-red-400' : 'text-muted-foreground'}>{r.unlanded ? 'unlanded' : r.used ? '0' : 'not used'}</span>
         )}
       </td>
-      <td className="min-w-32 px-2 py-1">{r.disposition ? <MaskedText text={r.disposition} context={r.id} /> : <span className="text-muted-foreground/50">—</span>}</td>
+      <td className="min-w-32 px-2 py-1">{r.disposition ? <MaskedText text={r.disposition} context={r.id} /> : <span className="text-muted-foreground">—</span>}</td>
       <td className="min-w-40 px-2 py-1">
         {r.lineage.map((l, i) => (
           <div key={i}>{l.ref ? <RefLink to={l.ref}>{l.text}</RefLink> : l.text}</div>

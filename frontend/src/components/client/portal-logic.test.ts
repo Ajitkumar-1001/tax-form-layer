@@ -8,7 +8,7 @@ import type { Packet } from '@/lib/model/packet-types'
 import { project } from '@/lib/model/project'
 import type { State } from '@/lib/model/state'
 import { identities } from '@/lib/model/viewer'
-import { clientQuestions, portalClient, signState, stillNeeded } from './portal-logic'
+import { clientQuestions, portalClient, portalHeadline, type SignState, signState, stillNeeded } from './portal-logic'
 
 const packet = JSON.parse(readFileSync(path.join(__dirname, '../../../data/okafor_lindqvist_2025_packet.json'), 'utf8')) as Packet
 const model = buildModel(packet)
@@ -91,5 +91,35 @@ describe('signState', () => {
       ['st-01', { type: 'adjust', target: 'SchC.1', body: { field: 'value', to: 151300, reason: 'Paywell 1099-K double counted', evidence: [] } }],
     ])
     expect(signState(model, changed, 'cu-01')).toEqual({ kind: 'changed', requestSeq: 1 })
+  })
+})
+
+describe('portalHeadline', () => {
+  const none: SignState = { kind: 'none' }
+  const ready: SignState = { kind: 'ready', requestSeq: 1 }
+
+  it('says what is left to do before signing', () => {
+    expect(portalHeadline(0, 0, ready)).toBe('Your return is ready to sign.')
+    expect(portalHeadline(1, 0, ready)).toBe('One thing to do, then sign.')
+    expect(portalHeadline(2, 1, ready)).toBe('3 things to do, then sign.')
+  })
+
+  it('asks for answers, or for items, when nothing can be signed yet', () => {
+    expect(portalHeadline(0, 0, none)).toBe('Nothing for you to do right now.')
+    expect(portalHeadline(1, 0, none)).toBe('One question needs your answer.')
+    expect(portalHeadline(3, 0, none)).toBe('3 questions need your answer.')
+    expect(portalHeadline(1, 1, none)).toBe('We still need 2 items from you.')
+    expect(portalHeadline(0, 1, none)).toBe('We still need one item from you.')
+  })
+
+  it('reports the end states whatever else is open', () => {
+    expect(portalHeadline(2, 2, { kind: 'filed' })).toBe('Your return has been filed.')
+    expect(portalHeadline(2, 2, { kind: 'signed', requestSeq: 1, waitingFor: [] })).toBe('You have signed.')
+    expect(portalHeadline(2, 2, { kind: 'changed', requestSeq: 1 })).toBe('Some amounts changed.')
+  })
+
+  it('keeps every headline within two lines at the hero size (32 characters)', () => {
+    const all: SignState[] = [ready, none, { kind: 'filed' }, { kind: 'changed', requestSeq: 1 }, { kind: 'signed', requestSeq: 1, waitingFor: [] }]
+    for (const sign of all) for (const [q, r] of [[0, 0], [1, 0], [12, 0], [1, 1], [0, 9]]) expect(portalHeadline(q, r, sign).length).toBeLessThanOrEqual(32)
   })
 })

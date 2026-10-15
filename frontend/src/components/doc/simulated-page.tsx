@@ -49,7 +49,7 @@ export function SimulatedPage({ source, page, anchors, focus, className }: Simul
         ) : (
           <div className="relative mx-auto aspect-[8.5/11] w-full max-w-2xl bg-white text-zinc-900 shadow-sm ring-1 ring-black/10 dark:bg-zinc-100">
             <div className="px-[7%] pt-[6%] pb-3 font-mono text-[11.5px] leading-relaxed">
-              <p className="mb-3 border-b border-zinc-300 pb-1 text-[10px] tracking-wide text-zinc-500 uppercase">{source.issuer}</p>
+              <p className="mb-3 border-b border-zinc-300 pb-1 text-[10px] tracking-wide text-zinc-900 uppercase">{source.issuer}</p>
               <p className="break-words whitespace-pre-wrap">
                 {segments.map((s, i) => {
                   const a = s.ev ? byEv.get(s.ev) : undefined

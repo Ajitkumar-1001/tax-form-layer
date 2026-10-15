@@ -19,7 +19,7 @@ export function StatusPill({ status }: { status: ClaimStatus }) {
 }
 
 const FLAG: Record<Flag, { label: string; title: string; className: string }> = {
-  needs_partner: { label: 'Needs partner', title: 'A live adjustment over 1,000 is not covered by a valid partner sign-off', className: 'bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200' },
+  needs_partner: { label: 'Needs partner', title: 'A live adjustment over 1,000 is not covered by a valid partner sign-off', className: 'bg-info-soft text-info' },
   reopened: { label: 'Reopened', title: 'A sign-off covering this is no longer valid', className: 'bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200' },
   stale: { label: 'Stale', title: 'An input was adjusted; this engine value does not include it', className: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200' },
   blocks_filing: { label: 'Blocks filing', title: 'Counts against a filing gate', className: 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200' },

@@ -69,7 +69,7 @@ export function PartnerDesk() {
                   className={
                     i.covered
                       ? 'rounded-full bg-emerald-100 px-2 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200'
-                      : 'rounded-full bg-violet-100 px-2 text-xs text-violet-900 dark:bg-violet-950 dark:text-violet-200'
+                      : 'rounded-full bg-info-soft px-2 text-xs text-info'
                   }
                 >
                   {i.covered ? 'Covered' : 'Needs partner'}

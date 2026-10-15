@@ -159,7 +159,7 @@ function DiffTable({ rows }: { rows: DiffRow[] }) {
 function ValueCell({ v, context }: { v: DiffRow['a']; context: string }) {
   return (
     <td className="px-2 py-1 text-right whitespace-nowrap tabular-nums">
-      {typeof v === 'number' ? <Money value={v} /> : v === null ? <span className="text-muted-foreground/50">—</span> : <MaskedText text={v} context={context} />}
+      {typeof v === 'number' ? <Money value={v} /> : v === null ? <span className="text-muted-foreground">—</span> : <MaskedText text={v} context={context} />}
     </td>
   )
 }
