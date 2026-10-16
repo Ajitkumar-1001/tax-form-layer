@@ -112,6 +112,10 @@ export interface SignoffView {
 export interface Reason {
   text: string
   ref?: string // where to go to fix it
+  /** Step reasons only: the reason without its items ("Not verified to the signed document"). */
+  what?: string
+  /** Step reasons only: every open item behind the reason, in order (the text names the first three). */
+  refs?: string[]
 }
 export interface StepView {
   n: number // 1..12

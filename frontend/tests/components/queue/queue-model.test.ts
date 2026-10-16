@@ -193,7 +193,7 @@ describe('blocks filing from acts', () => {
   })
 })
 
-describe('next card', () => {
+describe('next action', () => {
   it('sends st-01 at an empty log to the largest-money finding in her areas: the RSU basis', () => {
     const n = nextAction(model, fresh(), who('st-01'))!
     expect(n.kind).toBe('finding')

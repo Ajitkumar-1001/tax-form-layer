@@ -6,7 +6,7 @@ import type { Claim, Val } from './claims'
 import { effectSpec } from './effects'
 import { hash } from './hash'
 import { AREAS, AREA_LABEL, type AreaKey, SEASON_START, parsePageRef, seasonEvents } from './ids'
-import { sameValue } from './mask-token'
+import { MASK_RE, sameValue } from './mask-token'
 import type {
   AdjustView, ApprovalView, AreaView, ClaimState, ClaimStatus, FilingView, FindingState, Flag, InboxItem, NoteView,
   Reason, SignoffView, Stage, State, StepView, Support, SupportLetter, Totals, Viewer,
@@ -635,12 +635,21 @@ function addFlag(c: ClaimState | undefined, f: Flag) {
   if (c && !c.flags.includes(f)) c.flags.push(f)
 }
 
-const clip = (s: string, n = 80) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
+/** About n characters for one-line copies. A mask token that straddles the cut is kept whole, so a token is never split. */
+export function clip(s: string, n = 80): string {
+  if (s.length <= n) return s
+  let end = n - 1
+  for (const m of s.matchAll(MASK_RE)) {
+    const a = m.index!, b = a + m[0].length
+    if (a < end && end < b) { end = b; break }
+  }
+  return end >= s.length ? s : `${s.slice(0, end)}…`
+}
 
 function listReason(what: string, ids: string[]): Reason[] {
   if (!ids.length) return []
   const more = ids.length > 3 ? ` and ${ids.length - 3} more` : ''
-  return [{ text: `${what}: ${ids.slice(0, 3).join(', ')}${more}`, ref: ids[0] }]
+  return [{ text: `${what}: ${ids.slice(0, 3).join(', ')}${more}`, ref: ids[0], what, refs: ids }]
 }
 
 /** Linear estimates are wrong once a summed change crosses an engine threshold. */

@@ -1,6 +1,6 @@
 'use client'
-// One queue group (<details> with a count) and its rows. Rows are buttons of at most two lines: click / Enter selects
-// into the claim pane, double-click opens the full Trace page. The checkbox picks the row for bulk acts. Row text
+// One queue group (<details> with a count) and its rows. Rows are buttons of at most two lines: click / Enter opens the
+// row in the claim drawer (?c=), double-click opens the full Trace page. The checkbox picks the row for bulk acts. Row text
 // goes through plainMasked: a token has no Reveal button inside a row button, so it shows as •••-••-NNNN.
 import type { ReactNode } from 'react'
 import { FlagChips, Money, Stake } from '@/components/atoms'

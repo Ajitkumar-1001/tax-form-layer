@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { project } from '@/lib/model/project'
+import { makeToken } from '@/lib/model/mask-token'
+import { clip, project } from '@/lib/model/project'
 import type { AuthResult } from '@/lib/model/state'
 import { OK, WALL, adjust, effective, log, model, openFindingIds, resolveFinding, signoff, verify, who } from './test-helpers'
 
@@ -153,6 +154,31 @@ describe('project: sign-offs, reverts, gates, approval and freeze', () => {
   }, 30_000) // ~250 posts, each re-projecting the whole packet: about 1.5 s alone, slower under the full suite
 })
 
+describe('project: step reasons carry their items', () => {
+  it('lists every open item behind a step reason; the text and the gate reasons keep their shape', () => {
+    const s = log().state
+    const first = s.steps[0].reasons[0]
+    expect(first.what).toBe('Not verified to the signed document')
+    expect(first.refs).toEqual(['D01', 'D02'])
+    expect(first.text).toBe('Not verified to the signed document: D01, D02')
+    expect(first.ref).toBe('D01')
+
+    const comm = s.steps[3].reasons.find((r) => r.text.startsWith('Client communication neither cited nor disposed'))!
+    expect(comm.refs).toHaveLength(45)
+    expect(comm.text.endsWith('and 42 more')).toBe(true)
+    expect(comm.text).toBe(`${comm.what}: ${comm.refs?.slice(0, 3).join(', ')} and 42 more`)
+
+    for (const r of s.steps.flatMap((x) => x.reasons)) {
+      expect(r.ref).toBe(r.refs?.[0])
+      expect(r.text.startsWith(`${r.what}: `)).toBe(true)
+    }
+
+    const gate = [...s.gates.request_approval.reasons, ...s.gates.submit.reasons]
+    expect(gate).toHaveLength(11 + 12)
+    for (const r of gate) expect(Object.keys(r).sort()).toEqual(['ref', 'text'])
+  })
+})
+
 describe('project: step 4 accounts for every document', () => {
   it('counts duplicate copies (CHK-18) and never-extracted documents (CHK-03), not unread pages', () => {
     const l = log()
@@ -227,5 +253,36 @@ describe('project: inbox times are on the season clock', () => {
       expect(i.at).toBe(l.acts.find((a) => a.seq === i.seq)!.season_at)
       expect(i.at).not.toBe(WALL)
     }
+  })
+})
+
+describe('clip', () => {
+  // A synthetic 24-character token, as long as the packet's: clip never compares tags, so any tag will do.
+  const t = makeToken('ssn', '3309', 'synthetic0')
+  const a = (k: number) => 'a'.repeat(k)
+
+  it('leaves a short string unchanged', () => {
+    expect(clip('Tie the extension payment to the IRS transcript.')).toBe('Tie the extension payment to the IRS transcript.')
+  })
+
+  it('cuts a long plain string to 79 characters plus "…"', () => {
+    expect(clip('x'.repeat(100))).toBe(`${'x'.repeat(79)}…`)
+  })
+
+  it('keeps a token that straddles index 79 whole, then adds "…"', () => {
+    expect(t).toHaveLength(24) // so the token spans 70 to 94 and the cut at 79 falls inside it
+    expect(clip(`${a(70)}${t} tail ${a(30)}`)).toBe(`${a(70)}${t}…`)
+  })
+
+  it('leaves a token that ends before the cut untouched', () => {
+    const out = clip(`${a(40)}${t}${a(60)}`)
+    expect(out).toBe(`${a(40)}${t}${a(15)}…`)
+    expect(out).toHaveLength(80)
+  })
+
+  it('cuts before a token that starts at index 79', () => {
+    const out = clip(`${a(79)}${t}${a(10)}`)
+    expect(out).toBe(`${a(79)}…`)
+    expect(out).not.toContain('«')
   })
 })

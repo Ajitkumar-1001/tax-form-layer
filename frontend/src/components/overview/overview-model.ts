@@ -109,7 +109,7 @@ const NOT_YET_APPROVED = 'Not yet approved by'
 
 /**
  * What blocks filing (spec §4.5): the red steps in order, then the open blocking review notes, so the items match
- * state.gates.submit.reasons one for one. Texts are never clipped (the gate clips notes, which can cut a masked token).
+ * state.gates.submit.reasons one for one. Texts are never clipped (the gate clips notes to about 80 characters).
  */
 export function blockersOf(model: Model, state: State): Blockers {
   const people = identities(model.packet)

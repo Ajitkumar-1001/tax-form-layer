@@ -56,6 +56,19 @@ describe('OvAct', () => {
     expect(html).toMatch(new RegExp(`id="${id}"[^>]*>(<[^>]+>)*${REFUSED.replace(/\./g, '\\.')}`))
   })
 
+  it('live and refused, with a reason and focusable: an aria-disabled button described by the given reason', () => {
+    const reason = 'Given reason, in words.'
+    const html = render(h(OvAct, { request: assign, whenRefused: 'explain', size: 'sm', reason, focusable: true, children: 'Reassign' }), 'st-01')
+    const button = /<button[^>]*>Reassign<\/button>/.exec(html)?.[0] ?? ''
+    expect(button).toContain('aria-disabled="true"')
+    expect(button).not.toMatch(/\sdisabled=""/) // data-disabled="" stays: Base UI's styling hook, not the attribute
+    expect(button).toContain('data-disabled:opacity-50')
+    const id = /aria-describedby="([^"]+)"/.exec(button)?.[1]
+    expect(id).toBeTruthy()
+    expect(html).toMatch(new RegExp(`id="${id}"[^>]*>(<[^>]+>)*${reason.replace(/\./g, '\\.')}`))
+    expect(html).not.toContain(REFUSED)
+  })
+
   it('live and refused, hide: nothing', () => {
     expect(render(act('hide'), 'st-01')).toBe('')
   })

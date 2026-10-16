@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { CircleCheckIcon, ClipboardCheckIcon, OctagonAlertIcon } from 'lucide-react'
 import { useWorkspace } from '@/components/workspace/context'
+import { plainMasked } from '@/lib/model/mask-token'
 import type { Stage } from '@/lib/model/state'
 import { cn } from '@/lib/utils'
 import { isCurrent, NAV, usePillSlide } from './nav'
@@ -156,7 +157,7 @@ function ReturnState() {
       </div>
       <Link
         href="/filing"
-        title={gate.ok ? 'Every filing gate passes' : gate.reasons.map((r) => r.text).join('\n')}
+        title={gate.ok ? 'Every filing gate passes' : gate.reasons.map((r) => plainMasked(r.text)).join('\n')}
         className={cn(
           'flex items-center gap-2 rounded-lg outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground',
           gate.ok ? 'text-success' : 'text-warning',

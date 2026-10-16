@@ -1,7 +1,8 @@
 'use client'
 // One dialog body for every act type: the fields of the open type, a live tax-effect preview, Zod field
 // errors, and the authorize() refusal in place of the submit button. Posts the parsed act via the workspace.
-import { type FormEvent, type ReactNode, useId, useState } from 'react'
+import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from 'react'
+import { MaskedText } from '@/components/atoms'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -18,6 +19,7 @@ import type { OpenActRequest, Workspace } from '@/components/workspace/types'
 import { ActInputZ, type ApprovalDerived, VERIFICATION_METHODS } from '@/lib/model/acts'
 import { needsPartner, PARTNER_THRESHOLD, whatIfEffect } from '@/lib/model/effects'
 import { AREA_LABEL, type AreaKey } from '@/lib/model/ids'
+import { plainMasked } from '@/lib/model/mask-token'
 import { scopeOf } from '@/lib/model/project'
 import {
   type AdjustFieldT, type AdjustPreview, type Answer, buildInput, DECIDE_KIND_LABEL, DISPOSITION_LABEL, DISPOSITION_NEEDS_REF,
@@ -57,9 +59,16 @@ interface ActFormProps {
   onOpen: (req: OpenActRequest) => void
 }
 
-export function ActDialog(props: ActFormProps) {
+/** `finalFocus` is the host's close-time focus rule (act-host.tsx, focusReturn), or undefined for Base UI's default. */
+export function ActDialog({
+  finalFocus,
+  ...props
+}: ActFormProps & Pick<ComponentProps<typeof DialogContent>, 'finalFocus'>) {
   return (
-    <DialogContent className={`max-h-[90vh] overflow-y-auto ${WIDE.has(props.req.type) ? 'sm:max-w-xl' : 'sm:max-w-md'}`}>
+    <DialogContent
+      finalFocus={finalFocus}
+      className={`max-h-[90vh] overflow-y-auto ${WIDE.has(props.req.type) ? 'sm:max-w-xl' : 'sm:max-w-md'}`}
+    >
       <ActForm {...props} />
     </DialogContent>
   )
@@ -127,10 +136,10 @@ export function ActForm({ req, onDone, onOpen }: ActFormProps) {
       <Section {...props} />
 
       {unplaced && <p role="alert" className="text-sm text-destructive">{unplaced}</p>}
-      {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
+      {serverError && <p role="alert" className="text-sm text-destructive"><MaskedText text={serverError} context={req.target} /></p>}
 
       <DialogFooter>
-        {!auth.ok && <p role="status" className="text-sm text-destructive sm:mr-auto sm:self-center">{auth.reason}</p>}
+        {!auth.ok && <p role="status" className="text-sm text-destructive sm:mr-auto sm:self-center"><MaskedText text={auth.reason} context={req.target} /></p>}
         <DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose>
         {auth.ok && <Button type="submit" disabled={busy}>{busy ? 'Saving…' : SUBMIT[req.type]}</Button>}
       </DialogFooter>
@@ -622,7 +631,13 @@ function GateReasons({ gate }: { gate: { ok: boolean; reasons: { text: string; r
     <ul className="grid gap-1 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
       {gate.reasons.map((r) => (
         <li key={r.text}>
-          {r.ref ? <a href={`/r/${encodeURIComponent(r.ref)}`} className="underline underline-offset-2">{r.text}</a> : r.text}
+          {r.ref ? (
+            <a href={`/r/${encodeURIComponent(r.ref)}`} className="underline underline-offset-2">
+              {plainMasked(r.text)}
+            </a>
+          ) : (
+            plainMasked(r.text)
+          )}
         </li>
       ))}
     </ul>

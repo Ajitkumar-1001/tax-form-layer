@@ -7,6 +7,7 @@ import { refHref } from '@/components/atoms/format'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useWorkspace } from '@/components/workspace/context'
+import { plainMasked } from '@/lib/model/mask-token'
 import type { InboxItem } from '@/lib/model/state'
 import { cn } from '@/lib/utils'
 
@@ -61,7 +62,7 @@ export function Inbox() {
                   <Link href={refHref(i.ref)} onClick={() => setOpen(false)} className="flex gap-2.5 px-3 py-2 hover:bg-muted">
                     <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className={cn('line-clamp-2', isNew(i) && 'font-medium')}>{i.text}</span>
+                      <span className={cn('line-clamp-2', isNew(i) && 'font-medium')}>{plainMasked(i.text)}</span>
                       <span className="flex gap-1.5 text-xs text-muted-foreground">
                         <span className="truncate font-mono">{i.ref}</span>·<Ago iso={i.at} now={state.clock} />
                       </span>

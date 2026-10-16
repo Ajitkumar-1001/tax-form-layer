@@ -8,6 +8,7 @@ import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, Comma
 import { DialogClose } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import { openTour } from '@/components/tour/store'
+import { TOUR_ENABLED } from '@/components/tour/steps'
 import { useWorkspace } from '@/components/workspace/context'
 import { NAV } from './nav'
 import { KIND_LABEL, paletteHits } from './search'
@@ -39,7 +40,7 @@ export function CommandPalette() {
 
   const q = query.trim().toLowerCase()
   const pages = q ? NAV.filter((n) => n.label.toLowerCase().includes(q)) : []
-  const wantsTour = q !== '' && ['tour', 'take the tour', 'help', 'guide'].some((w) => w.startsWith(q))
+  const wantsTour = TOUR_ENABLED && q !== '' && ['tour', 'take the tour', 'help', 'guide'].some((w) => w.startsWith(q))
   const { hits, heading } = open ? paletteHits(model.claimList, query, LIMIT) : { hits: [], heading: '' }
 
   return (

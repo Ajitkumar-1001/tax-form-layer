@@ -5,11 +5,12 @@ import { ActButton } from '@/components/acts/act-host'
 import { formatClock } from '@/components/atoms/format'
 import { Stake } from '@/components/atoms/money'
 import { RefLink } from '@/components/atoms/ref-link'
-import { FlagChips, StatusPill, SupportLetters } from '@/components/atoms/status'
+import { FlagChips, StatusPill, SUPPORT_LEGEND, SupportLetters } from '@/components/atoms/status'
 import { useWorkspace } from '@/components/workspace/context'
 import type { OpenActRequest } from '@/components/workspace/types'
 import type { Claim, ClaimKind } from '@/lib/model/claims'
 import type { ClaimState } from '@/lib/model/state'
+import { cn } from '@/lib/utils'
 import { useWho, ValueText } from './parts'
 import { netEffect } from './resolve'
 
@@ -18,18 +19,33 @@ const KIND_LABEL: Record<ClaimKind, string> = {
   whatif: 'Engine alternative', diag: 'Engine diagnostic', prior_item: 'Prior-preparer item',
 }
 
-/** True when the trace sits inside a page that owns the h1 (the queue's compact pane); its title is then an h2. */
+/** True when the trace sits inside a page that owns the h1 (the queue's claim drawer); its title is then an h2. */
 export const TraceNested = createContext(false)
 
+/** The nested heading's id: it names the claim drawer (aria-labelledby) and takes focus (queue/claim-drawer.tsx). */
+export const CLAIM_DRAWER_TITLE_ID = 'claim-drawer-title'
+
 export function TraceTitle({ refId, kind, label, children }: { refId: string; kind: string; label: ReactNode; children?: ReactNode }) {
-  const Heading = use(TraceNested) ? 'h2' : 'h1'
+  const nested = use(TraceNested)
+  const Heading = nested ? 'h2' : 'h1'
   return (
     <header className="flex min-w-0 flex-col gap-1">
       <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
         <span>{kind}</span>
         <span className="font-mono text-foreground">{refId}</span>
       </p>
-      <Heading className="text-lg leading-snug font-semibold text-balance">{label}</Heading>
+      {/* Nested, the heading names the claim drawer (aria-labelledby) and takes focus when it opens or changes claim, so
+          keyboard focus shows on it. No outline-none: in Tailwind v4 it would also null the focus-visible outline's style. */}
+      <Heading
+        id={nested ? CLAIM_DRAWER_TITLE_ID : undefined}
+        tabIndex={nested ? -1 : undefined}
+        className={cn(
+          'text-lg leading-snug font-semibold text-balance',
+          nested && 'rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+        )}
+      >
+        {label}
+      </Heading>
       {children}
     </header>
   )
@@ -67,8 +83,10 @@ export function ClaimHeader({ claim, cs }: { claim: Claim; cs: ClaimState | unde
         {cs && <FlagChips flags={cs.flags} />}
         {cs && <SupportLetters support={cs.support} />}
       </div>
+      {cs && <p className="text-xs text-muted-foreground">{SUPPORT_LEGEND}</p>}
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
         <Item label={later ? 'Not yet in file' : 'In file since'} dim={later}>{formatClock(claim.knownAt)}</Item>
+        <Item label="Assigned to">{who(state.assignments[claim.area])}</Item>
         {net.count > 0 && (
           <Item label={`Net effect of ${net.count} live ${net.count === 1 ? 'adjustment' : 'adjustments'}`}>
             {net.fed || net.ca ? <Stake fed={net.fed} ca={net.ca} /> : 'none'}

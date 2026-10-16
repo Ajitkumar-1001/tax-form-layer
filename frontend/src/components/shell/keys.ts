@@ -18,3 +18,9 @@ export function inOverlay(el: ElLike): boolean {
   const o = el?.closest(OVERLAY_SELECTOR)
   return !!o && !o.matches('[data-claim-drawer]')
 }
+
+/** On a Select trigger (role="combobox"), which takes typeahead while closed: "k" there picks "K-1s & basis". Kept out
+ *  of TYPING_SELECTOR, because the claim drawer's Esc branch reads isTypingTarget and Esc there must still close it. */
+export function takesTypeahead(el: ElLike): boolean {
+  return !!el?.closest('[role="combobox"]')
+}

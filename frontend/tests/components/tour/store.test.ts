@@ -60,12 +60,22 @@ describe('the stored tour', () => {
     expect(parseTour(readTourRaw())).toEqual(FRESH)
   })
 
-  it('opens at the first stop and closes for good', () => {
+  it('opens at the first stop and closes for good, while a host is listening', () => {
     vi.stubGlobal('localStorage', storage())
+    const off = subscribeTour(() => {})
     openTour()
     expect(parseTour(readTourRaw())).toEqual(startTour())
     closeTour()
     expect(parseTour(readTourRaw())).toEqual({ seen: true, step: null })
+    off()
+  })
+
+  it('does not open when no host is listening, so the next page view cannot offer a tour nobody saw', () => {
+    const s = storage()
+    vi.stubGlobal('localStorage', s)
+    openTour()
+    expect(s.data.has('wp:tour')).toBe(false)
+    expect(readTourEngaged()).toBe(false)
   })
 })
 

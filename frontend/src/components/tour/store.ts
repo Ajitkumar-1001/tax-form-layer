@@ -48,8 +48,10 @@ export function writeTour(next: TourStored): void {
   for (const l of listeners) l()
 }
 
-/** Start the tour from anywhere (the command palette, a button): the host navigates to the first stop. */
+/** Start the tour from anywhere (the command palette, a button): the host navigates to the first stop. With no host listening
+ *  (its code did not load, or it failed) nothing happens: writing would only make the next page view offer a tour nobody saw. */
 export function openTour(): void {
+  if (listeners.size === 0) return
   writeTour(startTour())
 }
 

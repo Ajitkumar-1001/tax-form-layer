@@ -2,8 +2,6 @@ import type { Metadata } from 'next'
 import { DM_Sans, Geist_Mono } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { TourBoundary } from '@/components/tour/tour-boundary'
-import { TourLoader } from '@/components/tour/tour-loader'
 import { WorkspaceProvider } from '@/components/workspace'
 import './globals.css'
 
@@ -33,9 +31,6 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
         <TooltipProvider>
           <WorkspaceProvider>{children}</WorkspaceProvider>
         </TooltipProvider>
-        <TourBoundary>
-          <TourLoader />
-        </TourBoundary>
         {/* Offsets clear the sticky gate bar (one line on desktop, two on phones). */}
         <Toaster position="bottom-right" offset={{ bottom: 44, right: 16 }} mobileOffset={{ bottom: 56 }} />
       </body>

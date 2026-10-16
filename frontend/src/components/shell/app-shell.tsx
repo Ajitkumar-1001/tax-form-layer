@@ -7,6 +7,7 @@ import { CircleCheckIcon, OctagonAlertIcon } from 'lucide-react'
 import { RefLink } from '@/components/atoms/ref-link'
 import { useWorkspace } from '@/components/workspace/context'
 import { PageSkeleton, TopBarSkeleton } from '@/components/workspace/skeleton'
+import { plainMasked } from '@/lib/model/mask-token'
 import type { Reason } from '@/lib/model/state'
 import { cn } from '@/lib/utils'
 import { CommandPalette } from './command-palette'
@@ -17,6 +18,7 @@ import { RailToggle, useRailShortcut } from './rail-toggle'
 import { spectrum } from './return-state'
 import { RoleSwitcher } from './role-switcher'
 import { SeasonClock } from './season-clock'
+import { ShortcutHelp } from './shortcut-help'
 
 const GATE_REASONS_SHOWN = 4
 
@@ -40,8 +42,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <Rail />
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* The queue's sticky claim pane (lg:top-14) assumes the 56 px top bar from lg. Hidden in print: the printed
-            workpaper is the report, not the app chrome. */}
+        {/* The queue's claim drawer and sticky bulk bar (lg:top-14) assume the 56 px top bar from lg. Hidden in print: the
+            printed workpaper is the report, not the app chrome. */}
         <header className="dark sticky top-0 z-40 bg-background text-foreground [color-scheme:dark] print:hidden">
           <Suspense fallback={<TopBarSkeleton />}>
             <TopBar />
@@ -101,6 +103,7 @@ function TopBar() {
       </div>
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <CommandPalette />
+        <ShortcutHelp />
         <Inbox />
         <RoleSwitcher />
       </div>
@@ -125,12 +128,12 @@ function ClientBanner() {
   )
 }
 
-// Below lg only: from lg the rail's foot carries the gate (rail.tsx). Not on the overview (/overview): its blockers section lists
+// Below lg only: from lg the rail's foot carries the gate (rail.tsx). Not on /overview or /filing: their own sections list
 // the same reasons.
 function GateBar() {
   const pathname = usePathname()
   const { state, packetSha, engagement } = useWorkspace()
-  if (pathname === '/overview') return null
+  if (pathname === '/overview' || pathname === '/filing') return null
   const gate = state.gates.submit
   const shown = gate.reasons.slice(0, GATE_REASONS_SHOWN)
   const more = gate.reasons.length - shown.length
@@ -178,17 +181,17 @@ function GateBar() {
 
 /** A gate reason links to where it is fixed: a ref (/r/<ref>) or, if it starts with "/", a page. */
 function ReasonLink({ reason }: { reason: Reason }) {
-  if (!reason.ref) return <>{reason.text}</>
+  if (!reason.ref) return <>{plainMasked(reason.text)}</>
   if (reason.ref.startsWith('/')) {
     return (
       <Link href={reason.ref} className="underline underline-offset-2">
-        {reason.text}
+        {plainMasked(reason.text)}
       </Link>
     )
   }
   return (
     <RefLink to={reason.ref} className="text-inherit underline">
-      {reason.text}
+      {plainMasked(reason.text)}
     </RefLink>
   )
 }

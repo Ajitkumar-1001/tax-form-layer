@@ -9,6 +9,7 @@ import { WorkspaceContext } from '@/components/workspace/context'
 import type { Workspace } from '@/components/workspace/types'
 import { authorize } from '@/lib/model/authorize'
 import { buildModel } from '@/lib/model/build'
+import { displayMasked, makeToken } from '@/lib/model/mask-token'
 import { project } from '@/lib/model/project'
 import { identities, viewerOf } from '@/lib/model/viewer'
 import { maskPacket } from '@/lib/server/mask'
@@ -34,9 +35,9 @@ const ws: Workspace = {
 }
 
 /** The shell at `pathname`, server-rendered with a loaded workspace (no boundary waits). */
-function shellAt(pathname: string): string {
+function shellAt(pathname: string, w: Workspace = ws): string {
   nav.pathname = pathname
-  return renderToString(h(WorkspaceContext, { value: ws }, h(AppShell, null, h('p', null, 'the page'))))
+  return renderToString(h(WorkspaceContext, { value: w }, h(AppShell, null, h('p', null, 'the page'))))
 }
 
 /** The text of every link marked current, in document order: the rail's first, then the phone row's. */
@@ -93,6 +94,20 @@ describe('AppShell on /overview and /queue', () => {
 
   it('marks the queue current on /queue', () => {
     expect(currentTabs(shellAt('/queue'))).toEqual(['Queue', 'Queue'])
+  })
+
+  it('masks a token in each form of a phone gate bar reason: plain, linked to a page, linked to a ref', () => {
+    const token = makeToken('ssn', '3309', 'synthetic0')
+    const shown = displayMasked({ kind: 'ssn', last4: '3309' })
+    const reasons = [{ text: `Plain ${token}` }, { text: `Page ${token}`, ref: '/filing' }, { text: `Ref ${token}`, ref: 'act:1' }]
+    const html = shellAt('/queue', { ...ws, state: { ...state, gates: { ...state.gates, submit: { ok: false, reasons } } } })
+    const at = html.indexOf(GATE_BAR)
+    expect(at).toBeGreaterThan(-1)
+    const bar = html.slice(html.lastIndexOf('<footer', at), html.indexOf('</footer>', at))
+    expect(bar).not.toContain('«')
+    expect(bar).toContain(`Plain ${shown}`)
+    expect(bar).toMatch(new RegExp(`<a [^>]*href="/filing"[^>]*>Page ${shown}</a>`))
+    expect(bar).toMatch(new RegExp(`<a [^>]*href="/r/act%3A1"[^>]*>Ref ${shown}</a>`))
   })
 
   it('drops the phone gate bar on /overview only', () => {

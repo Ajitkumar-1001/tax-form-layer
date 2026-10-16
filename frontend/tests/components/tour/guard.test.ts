@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { setTourOpen, TOUR_READ_ONLY_REASON, tourBlocksWrite } from '@/components/tour/guard'
+import { DEFAULT_ENGAGEMENT } from '@/lib/server/identity'
 
 afterEach(() => setTourOpen(false))
 
@@ -12,6 +13,11 @@ describe('the tour write guard', () => {
   it('blocks writes to the shared engagement while the tour is up', () => {
     setTourOpen(true)
     expect(tourBlocksWrite('main')).toBe(true)
+  })
+
+  it('guards the engagement the server treats as the shared one: the guard\'s literal and the server\'s default must agree', () => {
+    setTourOpen(true)
+    expect(tourBlocksWrite(DEFAULT_ENGAGEMENT)).toBe(true)
   })
 
   it('leaves a fresh copy writable, so there is somewhere to experiment', () => {

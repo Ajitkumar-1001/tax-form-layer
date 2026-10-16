@@ -93,15 +93,16 @@ describe('filing desk', () => {
     const t = text(render(h(FilingPage), ws('st-03')))
     for (const s of packet.firm.starter_standards.required_steps) expect(t).toContain(s)
     expect(t).toContain('Whole return')
-    expect(t).toContain('Cannot request approval yet')
-    expect(t).toContain('Filing blocked')
+    expect(t).toContain('Blocked by 11 open steps')
+    expect(t).toContain('Filing is blocked: 0 of 12 required steps done')
     expect(t).toContain('Nothing has been filed in this engagement')
     expect(t).toContain('Form 4868 with 36,000')
   })
 
   it('shows accepted filings, retention, the freeze, spouse approvals and the season record', () => {
     const t = text(render(h(FilingPage), ws('st-03', filed)))
-    expect(t).toContain('Frozen: federal and california filed and accepted')
+    expect(t).toContain('Frozen: federal and California filed and accepted')
+    expect(t).toContain('Filed and accepted: federal and California.')
     expect(t).toContain('retain until 2033-07-14')
     expect(t).toContain('Simulation rule: disclosed test rule')
     expect(t).toContain('efile rejected') // packet season record, tl-21
@@ -117,6 +118,7 @@ describe('filing desk', () => {
     expect(t).toContain('rejected')
     expect(t).toContain('Dependent TIN mismatch')
     expect(t).toContain('STATE-HOLD')
+    expect(t).toContain('E-file rejected: federal R0000-504-02; California held.')
   })
 })
 

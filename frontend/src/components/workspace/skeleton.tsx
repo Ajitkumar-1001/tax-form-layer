@@ -13,6 +13,7 @@ export function TopBarSkeleton() {
       <Skeleton className="order-last h-8 w-full rounded-full lg:order-none lg:w-64 xl:flex-1 rail-wide:flex-1" />
       <div className="flex shrink-0 items-center gap-2">
         <Skeleton className="h-8 w-9 rounded-full" />
+        <Skeleton className="hidden size-8 rounded-full lg:block" />
         <Skeleton className="size-8 rounded-full" />
         <Skeleton className="h-8 w-36 rounded-full max-sm:w-8" />
       </div>

@@ -100,7 +100,7 @@ describe('blockersOf', () => {
     const token = model.packet.household.people.find((p) => p.id === 'theo')!.ssn
     expect(isMasked(token)).toBe(true)
     const text = `The dependent SSN on the return does not match the card in D05; confirm ${token} with the client.`
-    // The gate clips note text to 80 characters: this token straddles the cut.
+    // The gate clips note text near 80 characters: this token straddles the cut, so the copy keeps it whole.
     expect(text.indexOf('«')).toBeLessThan(79)
     expect(text.indexOf('»')).toBeGreaterThan(79)
     const acts = actsOf(model, [
@@ -117,7 +117,8 @@ describe('blockersOf', () => {
     ])
     const gateCopy = state.gates.submit.reasons[12].text
     expect(gateCopy).toContain('«')
-    expect(gateCopy).not.toContain(token)
+    expect(gateCopy).toContain(token)
+    expect((gateCopy.match(/«/g) ?? []).length).toBe((gateCopy.match(MASK_RE) ?? []).length)
     for (const item of b.items) expect((item.text.match(/«/g) ?? []).length, item.context).toBe((item.text.match(MASK_RE) ?? []).length)
   })
 

@@ -29,17 +29,19 @@ function queueOf(acts: Act[]) {
 }
 const empty = queueOf([])
 
-function renderRow(find: (r: Row) => boolean, q = empty) {
+function renderRow(find: (r: Row) => boolean, q = empty, selected = false) {
   const row = q.rows.find(find)
   if (!row) throw new Error('no such row')
-  const html = renderToString(h(RowView, { row, model, state: q.state, selected: false, cursor: false, picked: false, on }))
+  const html = renderToString(h(RowView, { row, model, state: q.state, selected, cursor: false, picked: false, on }))
   return { row, state: q.state, html }
 }
 const byKey = (key: string) => (r: Row) => r.key === key
 
 /** The row button's top-level spans, i.e. its lines. */
 function lines(html: string): string[] {
-  const start = html.indexOf('>', html.indexOf('<button type="button" data-row=')) + 1
+  const button = html.indexOf('<button type="button" data-row=')
+  if (button < 0) throw new Error('no row button in this html')
+  const start = html.indexOf('>', button) + 1
   const body = html.slice(start, html.indexOf('</button>', start))
   const out: string[] = []
   let depth = 0
@@ -57,6 +59,24 @@ function lines(html: string): string[] {
 }
 const text = (html: string) => html.replace(/<[^>]+>/g, '')
 
+// Token-bearing acts: a blocking review note quoting Theo's SSN token on a line and on the return, and an agency
+// rejection whose message quotes it.
+const note = (target: string): [string, ActInput] => [
+  'st-02', { type: 'note', target, body: { kind: 'review_note', to: 'st-01', text: `Check Theo ${theo} before filing`, blocking: true } },
+]
+function withRejection(steps: [string, ActInput][]): Act[] {
+  const acts = actsOf(model, [...steps, ['st-03', { type: 'file', target: 'return', body: { kind: 'submit', jurisdictions: ['federal'] } }]])
+  const filed = acts[acts.length - 1]
+  const seq = filed.seq + 1
+  const result: Act = {
+    ...filed, seq, id: `t-${seq}`, actor: 'system', actor_role: 'system', type: 'agency_result', target: `act:${filed.seq}`, refs: [`act:${filed.seq}`],
+    body: { jurisdiction: 'federal', status: 'rejected', errors: [{ code: 'IND-180', message: `Dependent SSN ${theo} was already claimed` }], rule: 'test' },
+    derived: {}, hash: `h${seq}`, prev_hash: filed.hash,
+  }
+  return [...acts, result]
+}
+const tokens = queueOf(withRejection([note('F1040.26'), note('return')]))
+
 describe('row', () => {
   it('puts the label on line 1 and the reason on line 2', () => {
     const { html } = renderRow(byKey('blocks:step:1'))
@@ -66,10 +86,16 @@ describe('row', () => {
     expect(text(two)).toBe('Step 1 · Engagement letter and consents signed: Not verified to the signed document: D01, D02')
   })
 
-  it('renders every row of the empty log in at most two lines, with no pill, letters, mono ref, initials or raw token', () => {
-    expect(empty.rows).toHaveLength(134)
-    for (const row of empty.rows) {
-      const { html } = renderRow((r) => r === row)
+  // Run over the empty log and over a log whose acts quote a token, so "no raw token" can fail: some rows there carry
+  // one in their title or reason.
+  it.each([
+    ['the empty log', empty],
+    ['a log with token-bearing acts', tokens],
+  ] as const)('renders every row of %s in at most two lines, with no pill, letters, mono ref, initials or raw token', (_, q) => {
+    if (q === empty) expect(q.rows).toHaveLength(134)
+    else expect(q.rows.filter((r) => `${r.title} ${r.reason ?? ''}`.includes('«')).length).toBeGreaterThanOrEqual(3)
+    for (const row of q.rows) {
+      const { html } = renderRow((r) => r === row, q)
       expect(lines(html).length, row.key).toBeLessThanOrEqual(2)
       expect(html, row.key).not.toMatch(/>(Open|Adjusted|Verified|Accepted|Read OK|Unreviewed)</)
       expect(html, row.key).not.toMatch(/>[DRCPT]<\/span>/)
@@ -80,6 +106,21 @@ describe('row', () => {
       expect(html, row.key).toContain(`title="${row.ref}"`)
       expect(html, row.key).not.toContain(`>${row.ref}<`)
     }
+  })
+
+  it('marks the selected row with bg-muted and drops the hover tint, and only that row', () => {
+    const li = (html: string) => html.match(/^<li class="([^"]*)"/)![1].split(' ')
+    const on = li(renderRow(byKey('contradicted:F8949.B.N1'), empty, true).html)
+    expect(on).toContain('bg-muted')
+    expect(on).not.toContain('hover:bg-muted/50')
+    const off = li(renderRow(byKey('contradicted:F8949.B.N1')).html)
+    expect(off).toContain('hover:bg-muted/50')
+    expect(off).not.toContain('bg-muted')
+    expect(renderRow(byKey('contradicted:F8949.B.N1'), empty, true).html).toContain('aria-current="true"')
+  })
+
+  it('finds no lines where there is no row button', () => {
+    expect(() => lines('<li><span>no button</span></li>')).toThrow('no row button')
   })
 
   it('keeps the ref out of the row text: it is the title attribute only', () => {
@@ -134,10 +175,6 @@ describe('row', () => {
 })
 
 describe('masked tokens in rows', () => {
-  const note = (target: string): [string, ActInput] => [
-    'st-02', { type: 'note', target, body: { kind: 'review_note', to: 'st-01', text: `Check Theo ${theo} before filing`, blocking: true } },
-  ]
-
   it('masks a blocking note on a line: its title is line 2', () => {
     const { html } = renderRow((r) => r.kind === 'note', queueOf(actsOf(model, [note('F1040.26')])))
     const [one, two] = lines(html)
@@ -202,6 +239,12 @@ describe('group header', () => {
     expect(html.indexOf('aria-label="Select all in Blocks filing"')).toBeGreaterThan(-1)
     expect(html.indexOf('aria-label="Select all in Blocks filing"')).toBeLessThan(html.indexOf('<summary'))
     expect(box(html)).toContain('aria-checked="mixed"')
+    // Placed in the header's gutter over the wrapper (relative), so the Checkbox's own relative is merged away, and it
+    // comes before the <details>, outside the <summary>.
+    const cls = box(html)!.match(/class="([^"]*)"/)![1]
+    expect(cls).toContain('absolute top-2 left-3')
+    expect(cls.split(' ')).not.toContain('relative')
+    expect(html.indexOf('aria-label="Select all in Blocks filing"')).toBeLessThan(html.indexOf('<details'))
     expect(summary(html)).toContain('pl-9')
     expect(box(render({ selectAll: { state: 'all', enabled: true, onToggle: noop } }))).toContain('aria-checked="true"')
     expect(box(render({ selectAll: { state: 'none', enabled: false, onToggle: noop } }))).toMatch(/aria-checked="false".*aria-disabled="true"|aria-disabled="true".*aria-checked="false"/)

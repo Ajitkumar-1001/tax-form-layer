@@ -59,6 +59,34 @@ export function phaseOf(s: TourStored, engaged: boolean): Phase {
   return { kind: 'step', index, step: STEPS[index] }
 }
 
+/** What the host knows from outside the stored state. */
+export interface TourContext {
+  /** TOUR_ENABLED, the kill switch. */
+  enabled: boolean
+  /** False until the stored text has been read in the browser (the server snapshot has none). */
+  hydrated: boolean
+  pathname: string
+}
+
+/** On screen at all? The client portal has its own shell and no tour; a switched-off tour shows nothing and guards nothing. */
+export const tourVisible = (c: TourContext): boolean => c.enabled && c.hydrated && !c.pathname.startsWith('/client')
+
+/** Whether the write guard is on: exactly while a stop or the closing card is on screen, never while a card only offers the
+ *  tour (the welcome, a tour left unfinished) and never when nothing shows. */
+export const lockOpen = (p: Phase, c: TourContext): boolean => tourVisible(c) && (p.kind === 'step' || p.kind === 'end')
+
+/** A path with its escapes undone, so `/r/household:theo%23ssn` matches however the browser spells it. */
+export function decodePath(path: string): string {
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
+}
+
+/** A stop's page: its address without the query. */
+export const routeOf = (href: string): string => decodePath(href.split('?')[0])
+
 export const startTour = (): TourStored => ({ seen: true, step: STEPS[0].id })
 export const skipTour = (): TourStored => ({ seen: true, step: null })
 

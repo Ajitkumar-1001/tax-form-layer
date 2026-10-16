@@ -5,10 +5,13 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { STEPS } from '@/components/tour/steps'
 
+// The tour's own folder is left out: steps.ts holds every selector, so counting it would make every hook look present.
+const TOUR_DIR = path.join(process.cwd(), 'src/components/tour')
+
 function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
     const p = path.join(dir, e.name)
-    if (e.isDirectory()) return sources(p)
+    if (e.isDirectory()) return p === TOUR_DIR ? [] : sources(p)
     return /\.tsx?$/.test(e.name) ? [readFileSync(p, 'utf8')] : []
   })
 }
@@ -32,6 +35,7 @@ describe('needleOf', () => {
     expect(needleOf('[data-tour="chain-demo"]')).toBe('data-tour="chain-demo"')
     expect(needleOf('section[aria-label="Next"]')).toBe('aria-label="Next"')
     expect(needleOf('#steps')).toBe('id="steps"')
+    expect(needleOf('[data-tour="queue-group"] > summary')).toBe('data-tour="queue-group"')
   })
 })
 
@@ -45,7 +49,13 @@ describe('needlesOf', () => {
 describe('the tour anchors', () => {
   const all = sources(path.join(process.cwd(), 'src')).join('\n')
 
-  it('exist in the source (at least one alternative of each)', () => {
+  it("does not count the tour's own script as a place a hook lives", () => {
+    expect(all).not.toContain(`anchor: '[data-tour="claim-tabs"]'`)
+  })
+
+  // The attribute is written out where the screen renders it. Letting `id="x"` stand in for `aria-labelledby="x"` (a component
+  // passing the id through) would still pass with the <section> gone, and that stop's ring would vanish unnoticed.
+  it('exist in the source of the screens (at least one alternative of each)', () => {
     for (const s of STEPS) if (s.anchor) expect(needlesOf(s.anchor).some((n) => all.includes(n)), `${s.id}: ${s.anchor}`).toBe(true)
   })
 })

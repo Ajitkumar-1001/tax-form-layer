@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backTour, FRESH, nextTour, parseTour, phaseOf, skipTour, startTour } from '@/components/tour/machine'
+import { backTour, decodePath, FRESH, lockOpen, nextTour, parseTour, phaseOf, routeOf, skipTour, startTour, tourVisible } from '@/components/tour/machine'
 import { END, STEPS } from '@/components/tour/steps'
 
 describe('parseTour', () => {
@@ -87,5 +87,44 @@ describe('moving through the tour', () => {
     expect(nextTour(skipTour())).toEqual(skipTour())
     expect(nextTour({ seen: true, step: END })).toEqual({ seen: true, step: END })
     expect(backTour(FRESH)).toEqual(FRESH)
+  })
+})
+
+describe('tourVisible and lockOpen: the write guard is on exactly while a stop or the closing card is on screen', () => {
+  const ctx = { enabled: true, hydrated: true, pathname: '/overview' }
+  const at = (step: string | null, engaged: boolean) => phaseOf({ seen: true, step }, engaged)
+
+  it('is on for a stop and for the closing card', () => {
+    expect(lockOpen(at(STEPS[0].id, true), ctx)).toBe(true)
+    expect(lockOpen(at(END, true), ctx)).toBe(true)
+  })
+
+  it('is off for every card that only offers the tour, and when nothing shows', () => {
+    expect(lockOpen(phaseOf(FRESH, true), ctx)).toBe(false) // the welcome card
+    expect(lockOpen(at(STEPS[0].id, false), ctx)).toBe(false) // a tour left unfinished: offered back, never guarded by itself
+    expect(lockOpen(at(null, true), ctx)).toBe(false) // finished or skipped
+    expect(lockOpen(at(END, false), ctx)).toBe(false)
+  })
+
+  it('is off on the client portal, before the stored state is read, and when the tour is switched off', () => {
+    const stop = at(STEPS[0].id, true)
+    expect(lockOpen(stop, { ...ctx, pathname: '/client' })).toBe(false)
+    expect(lockOpen(stop, { ...ctx, pathname: '/client/anything' })).toBe(false)
+    expect(lockOpen(stop, { ...ctx, hydrated: false })).toBe(false)
+    expect(lockOpen(stop, { ...ctx, enabled: false })).toBe(false)
+    expect(tourVisible({ ...ctx, enabled: false })).toBe(false)
+    expect(tourVisible(ctx)).toBe(true)
+  })
+})
+
+describe('routeOf and decodePath', () => {
+  it('drops the query and undoes escapes, so a stop matches its page however the browser spells it', () => {
+    expect(routeOf('/documents?unlanded=1')).toBe('/documents')
+    expect(routeOf('/r/household:theo%23ssn')).toBe(decodePath('/r/household:theo%23ssn'))
+    expect(decodePath('/r/household:theo%23ssn')).toBe('/r/household:theo#ssn')
+  })
+
+  it('leaves text that is not valid escaping as it is', () => {
+    expect(decodePath('/100%')).toBe('/100%')
   })
 })

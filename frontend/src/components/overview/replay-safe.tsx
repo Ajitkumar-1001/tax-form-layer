@@ -19,12 +19,16 @@ type ButtonProps = ComponentProps<typeof Button>
  * An act button judged against the live workspace. Refused, it either explains in visible text (a tooltip on a
  * disabled button reaches nobody on a keyboard, a screen reader or a phone) or hides. Replaying, it renders nothing.
  */
-export function OvAct({ request, children, whenRefused, size, variant }: {
+export function OvAct({ request, children, whenRefused, size, variant, reason, focusable }: {
   request: OpenActRequest
   children: ReactNode
   whenRefused: 'explain' | 'hide'
   size?: ButtonProps['size']
   variant?: ButtonProps['variant']
+  /** Refused: rendered in the describing span instead of <MaskedText text={auth.reason} context={request.target} />. */
+  reason?: ReactNode
+  /** Refused: Button gets focusableWhenDisabled and className "data-disabled:opacity-50" (aria-disabled, no disabled=""). */
+  focusable?: boolean
 }) {
   const replay = use(ReplayContext)
   const ws = useWorkspace()
@@ -35,14 +39,17 @@ export function OvAct({ request, children, whenRefused, size, variant }: {
     return <ActButton {...request} size={size} variant={variant}>{children}</ActButton>
   }
   if (whenRefused === 'hide') return null
+  // Opt-in (the filing page): the refused button stays in the Tab order. The Overview passes neither prop, so its
+  // buttons keep disabled="" and its HTML is unchanged.
+  const stay = focusable ? { focusableWhenDisabled: true, className: 'data-disabled:opacity-50' } : {}
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-      <Button type="button" size={size} variant={variant} disabled aria-describedby={reasonId}>
+      <Button type="button" size={size} variant={variant} disabled aria-describedby={reasonId} {...stay}>
         {children}
       </Button>
-      {/* Gate reasons can quote finding titles, which may hold masked tokens. */}
+      {/* Gate reasons can quote finding titles, which may hold masked tokens; a caller's reason masks its own text. */}
       <span id={reasonId} className="text-xs text-muted-foreground">
-        <MaskedText text={auth.reason} context={request.target} />
+        {reason ?? <MaskedText text={auth.reason} context={request.target} />}
       </span>
     </span>
   )

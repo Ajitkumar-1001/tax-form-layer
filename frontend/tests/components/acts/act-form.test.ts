@@ -10,6 +10,7 @@ import type { OpenActRequest, Workspace } from '@/components/workspace/types'
 import { authorize } from '@/lib/model/authorize'
 import { buildModel } from '@/lib/model/build'
 import type { Finding } from '@/lib/model/checks/types'
+import { displayMasked, makeToken } from '@/lib/model/mask-token'
 import type { Packet } from '@/lib/model/packet-types'
 import { project, scopeOf } from '@/lib/model/project'
 import { identities, viewerOf } from '@/lib/model/viewer'
@@ -73,6 +74,25 @@ describe('act forms render', () => {
     expect(html).not.toContain('type="submit"')
   })
 
+  it('the refusal line masks a token: gateText can quote a blocking note that holds one', () => {
+    const reason = `Client approval cannot be requested yet: confirm ${makeToken('ssn', '3309', 'synthetic0')}.`
+    const html = render({ type: 'request_approval', target: 'return' }, workspace('st-02', () => ({ ok: false, reason })))
+    expect(html).not.toContain('«')
+    expect(html).toContain(displayMasked({ kind: 'ssn', last4: '3309' }))
+    expect(html).not.toContain('type="submit"')
+  })
+
+  it('a request form masks a token in the gate reasons it lists, linked or not', () => {
+    const token = makeToken('ssn', '3309', 'synthetic0')
+    const shown = displayMasked({ kind: 'ssn', last4: '3309' })
+    const ws = workspace('st-02')
+    const reasons = [{ text: `Blocking review note: confirm ${token} with the client.`, ref: 'act:1' }, { text: `Step 2 open for ${token}` }]
+    const html = render({ type: 'request_approval', target: 'return' }, { ...ws, state: { ...ws.state, gates: { ...ws.state.gates, request_approval: { ok: false, reasons } } } })
+    expect(html).not.toContain('«')
+    expect(html).toMatch(new RegExp(`<a href="/r/act%3A1"[^>]*>Blocking review note: confirm ${shown} with the client\\.</a>`))
+    expect(html).toContain(`Step 2 open for ${shown}`)
+  })
+
   it('the adjust preview strikes the value it replaces and shows the effect', () => {
     const html = render({ type: 'adjust', target: 'F1040.19', prefill: { to: 0 } })
     expect(html).toMatch(/<s[^>]*>400<\/s>/)
@@ -96,6 +116,11 @@ describe('act forms render', () => {
     const html = button(workspace('st-02', () => ({ ok: false, reason: 'Frozen' })))
     expect(html).toContain(' disabled=""')
     expect(html).toContain('title="Frozen"')
+    // The refusal title is masked: gateText can quote a note that holds a token.
+    const token = makeToken('ssn', '3309', 'synthetic0')
+    const masked = button(workspace('st-02', () => ({ ok: false, reason: `Open blocking review notes: confirm ${token}.` })))
+    expect(masked).toContain(`title="Open blocking review notes: confirm ${displayMasked({ kind: 'ssn', last4: '3309' })}."`)
+    expect(masked).not.toContain('«')
     const finding: Finding = { id: 'chk:x', check: 'CHK-01', family: 'printed_vs_extracted', title: 't', why: 'w', severity: 'high', signal: 'computed', claims: [], evidence: [], knownSince: '' }
     expect(renderToString(h(WorkspaceContext, { value: workspace('st-01') }, h(FindingFixButton, { finding })))).toContain('Resolve…')
   })

@@ -44,7 +44,7 @@ export interface Row {
   key: string
   group: GroupKey
   kind: RowKind
-  /** What the claim pane opens (?c=). */
+  /** What the claim drawer opens (?c=). */
   ref: string
   /** Claim whose state (status, value, support, flags) the row shows, when the ref is one. */
   claim?: string
@@ -385,9 +385,9 @@ export interface NextAction {
   what: string
   why: string
   doneWhen: string
-  /** Opened in the claim pane by Go. */
+  /** What the Overview's next steps open when there is no act form. */
   ref: string
-  /** The act form Go opens (pre-filled), if any. */
+  /** The act form the Overview's next steps open (pre-filled), if any. */
   request?: OpenActRequest
   finding?: string
 }
@@ -412,7 +412,7 @@ function doneWhen(f: Finding): string {
 
 const moneyThenSeverity = (fs: Finding[]) => [...fs].sort(findingOrder)[0]
 
-/** The single most valuable next action for this viewer (spec §3.1 Next card). */
+/** The single most valuable next action for this viewer (the Overview's next steps lead with it). */
 export function nextAction(model: Model, state: State, viewer: Viewer): NextAction | null {
   const names = namesOf(model)
   const name = (id: string) => names[id] ?? id

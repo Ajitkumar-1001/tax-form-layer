@@ -1,7 +1,7 @@
 // The single-key shortcut guards. Node has no DOM, so the elements are stubs: a tag, attributes and a parent, with
 // closest/matches for what keys.ts asks (comma lists of tag names, [attr] and [attr="value"]).
 import { describe, expect, it } from 'vitest'
-import { type ElLike, inOverlay, isTypingTarget } from '@/components/shell/keys'
+import { type ElLike, inOverlay, isTypingTarget, takesTypeahead } from '@/components/shell/keys'
 
 type Stub = NonNullable<ElLike>
 
@@ -60,5 +60,30 @@ describe('inOverlay', () => {
   it('counts an overlay opened inside the drawer', () => {
     expect(inOverlay(el('div', { role: 'option' }, el('div', { role: 'listbox' }, drawer)))).toBe(true)
     expect(inOverlay(el('button', {}, el('div', { role: 'dialog' }, drawer)))).toBe(true)
+  })
+})
+
+// A closed Select trigger (the area filter, the identity switcher) is a button with role="combobox" that takes typeahead:
+// "k" there picks "K-1s & basis", so the queue's single keys must stand aside. It is not a typing target, though: the
+// drawer's Esc branch reads isTypingTarget, and Esc on a closed trigger must still close the drawer.
+describe('takesTypeahead', () => {
+  const trigger = el('button', { role: 'combobox' }, page)
+
+  it('is true on a Select trigger and inside one', () => {
+    expect(takesTypeahead(trigger)).toBe(true)
+    expect(takesTypeahead(el('span', {}, trigger))).toBe(true)
+    expect(takesTypeahead(el('button', { role: 'combobox' }, drawer))).toBe(true)
+  })
+
+  it('is false elsewhere and with no target', () => {
+    expect(takesTypeahead(el('button', {}, page))).toBe(false)
+    expect(takesTypeahead(el('div', { role: 'listbox' }, page))).toBe(false)
+    expect(takesTypeahead(null)).toBe(false)
+  })
+
+  it('leaves isTypingTarget and inOverlay false on the trigger', () => {
+    expect(isTypingTarget(trigger)).toBe(false)
+    expect(isTypingTarget(el('span', {}, trigger))).toBe(false)
+    expect(inOverlay(trigger)).toBe(false)
   })
 })

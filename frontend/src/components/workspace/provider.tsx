@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { type Act, type ActInput, PostActsZ } from '@/lib/model/acts'
 import { authorize } from '@/lib/model/authorize'
 import { buildModel, type Model } from '@/lib/model/build'
+import { plainMasked } from '@/lib/model/mask-token'
 import { project } from '@/lib/model/project'
 import type { State, Viewer } from '@/lib/model/state'
 import * as api from './api'
@@ -172,8 +173,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   function refuse(status: number, reason: string, quiet?: boolean): PostResult {
     if (!quiet) {
-      if (status === 409) toast.error('Someone changed this after you loaded it', { description: `${reason} Review before overriding.` })
-      else toast.error('Not recorded', { description: reason })
+      if (status === 409) toast.error('Someone changed this after you loaded it', { description: `${plainMasked(reason)} Review before overriding.` })
+      else toast.error('Not recorded', { description: plainMasked(reason) })
     }
     return { ok: false, status, reason }
   }
@@ -181,7 +182,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   async function undo(targets: string[]) {
     const r = await post(targets.map(undoInput), { quiet: true })
     if (r.ok) toast.success('Undone')
-    else toast.error('Undo refused', { description: r.reason })
+    else toast.error('Undo refused', { description: plainMasked(r.reason) })
   }
 
   async function reveal(token: string, context: string): Promise<{ ok: true; value: string } | { ok: false; reason: string }> {

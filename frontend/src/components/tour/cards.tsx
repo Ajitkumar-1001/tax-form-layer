@@ -5,12 +5,13 @@ import type { KeyboardEvent, ReactNode } from 'react'
 import Link from 'next/link'
 import { ArrowLeftIcon, ArrowRightIcon, CompassIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { TourStep } from './steps'
 
 const LINK = 'text-primary underline-offset-3 hover:underline'
 
-// Escape closes the tour; the arrows move through it. Only while focus is inside the card: the card is a dialog, so the
-// queue's single-letter shortcuts stand down there too (queue-screen.tsx ignores keys that come from a dialog).
+// Escape closes the tour; the arrows move through it. Here only while focus is inside the card (the card is a dialog, so the
+// queue's single-letter shortcuts stand down there too); the host adds Escape for a visitor who clicked into the page.
 function keys(on: { onClose: () => void; onBack?: () => void; onNext?: () => void }) {
   return (e: KeyboardEvent) => {
     if (e.key === 'Escape') on.onClose()
@@ -24,7 +25,8 @@ function keys(on: { onClose: () => void; onBack?: () => void; onNext?: () => voi
 // Bottom left of the content, beside the rail (rail-narrow: 64 px, rail-wide: 240 px, each plus a 16 px gap), so it covers
 // neither the toasts (bottom right) nor the rail's foot. Below lg a full-width sheet above the gate bar (56 px, the toasts'
 // mobile offset in app/layout.tsx). z-45: above the header (z-40) and the gate bar (z-30), below dialogs (z-50) and toasts,
-// so a dialog the visitor opens stays on top of the tour.
+// so a dialog the visitor opens stays on top of the tour. It never grows past the room between the header and the gate bar
+// (a zoomed or landscape window), scrolling inside instead. In forced colors box shadows vanish, so the edge is an outline.
 function Dock({ onKeyDown, children }: { onKeyDown: (e: KeyboardEvent) => void; children: ReactNode }) {
   return (
     <section
@@ -33,7 +35,7 @@ function Dock({ onKeyDown, children }: { onKeyDown: (e: KeyboardEvent) => void; 
       aria-labelledby="tour-title"
       aria-describedby="tour-body"
       onKeyDown={onKeyDown}
-      className="fixed bottom-4 left-4 z-[45] flex w-[min(22.5rem,calc(100vw-2rem))] animate-in flex-col gap-3 rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-200 fade-in-0 slide-in-from-bottom-2 max-lg:right-4 max-lg:bottom-14 max-lg:w-auto motion-reduce:animate-none rail-narrow:left-20 rail-wide:left-64 print:hidden"
+      className="fixed bottom-4 left-4 z-45 flex max-h-[calc(100svh-14.5rem)] w-[min(22.5rem,calc(100vw-2rem))] animate-in flex-col gap-3 overflow-y-auto overscroll-contain rounded-xl bg-popover p-4 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-200 fade-in-0 slide-in-from-bottom-2 max-lg:right-4 max-lg:bottom-14 max-lg:w-auto motion-reduce:animate-none rail-narrow:left-20 rail-wide:left-64 forced-colors:outline forced-colors:outline-[color:CanvasText] print:hidden"
     >
       {children}
     </section>
@@ -48,13 +50,11 @@ export function WelcomeCard({
   stops,
   resume,
   onStart,
-  onResume,
   onSkip,
 }: {
   stops: number
-  resume?: { index: number; title: string }
+  resume?: { index: number; title: string; onResume: () => void }
   onStart: () => void
-  onResume?: () => void
   onSkip: () => void
 }) {
   return (
@@ -68,7 +68,7 @@ export function WelcomeCard({
           <p id="tour-body" className="text-muted-foreground">
             {resume
               ? `You were on stop ${resume.index + 1} of ${stops}: ${resume.title}.`
-              : `${stops} stops through the real app, about four minutes: what it does, why it is different, and where the proof is. The tour only looks; it never changes any data.`}
+              : `${stops} stops through the real app, about four minutes: what it does, why it is different, and where the proof is. The tour only looks; it never changes any data, and while it is open the app is read-only. You can start it again later: open search and type tour.`}
           </p>
         </div>
       </div>
@@ -76,12 +76,12 @@ export function WelcomeCard({
         <Button variant="ghost" size="sm" className={touch} onClick={onSkip}>
           {resume ? 'Not now' : 'Explore on my own'}
         </Button>
-        {resume && onResume ? (
+        {resume ? (
           <>
             <Button variant="outline" size="sm" className={touch} onClick={onStart}>
               Start over
             </Button>
-            <Button size="sm" className={touch} onClick={onResume}>
+            <Button size="sm" className={touch} onClick={resume.onResume}>
               Resume
             </Button>
           </>
@@ -100,18 +100,23 @@ export function StepCard({
   index,
   total,
   focusNext,
+  away,
   onBack,
   onNext,
   onClose,
+  onReturn,
 }: {
   step: TourStep
   index: number
   total: number
   /** True once the visitor has pressed something in the tour: only then does focus move to Next (never on a reload). */
   focusNext: boolean
+  /** The visitor was on this stop's page and has left it (Back, or a link in the page): the card says so and offers the way back. */
+  away: boolean
   onBack: () => void
   onNext: () => void
   onClose: () => void
+  onReturn: () => void
 }) {
   const last = index === total - 1
   return (
@@ -127,11 +132,19 @@ export function StepCard({
           {step.body}
         </p>
         {step.more && (
-          <Link href={step.more.href} className={`${LINK} w-fit`}>
+          <Link href={step.more.href} className={cn(LINK, 'w-fit pointer-coarse:inline-flex pointer-coarse:h-11 pointer-coarse:items-center')}>
             {step.more.label}
           </Link>
         )}
       </div>
+      {away && (
+        <div className="flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2 text-xs">
+          <span>You have left this stop.</span>
+          <Button variant="outline" size="sm" className={touch} onClick={onReturn}>
+            Go back to it
+          </Button>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <Button variant="ghost" size="sm" className={touch} onClick={onClose}>
           Skip tour
@@ -145,9 +158,9 @@ export function StepCard({
           </Button>
         </div>
       </div>
-      {/* The card keeps its place from stop to stop, so a screen reader is told about each stop here. */}
-      <p className="sr-only" aria-live="polite">
-        Stop {index + 1} of {total}: {step.title}
+      {/* The card keeps its place from stop to stop, so a screen reader is told about each stop here: one string, read whole. */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {`Stop ${index + 1} of ${total}: ${step.title}`}
       </p>
     </Dock>
   )
@@ -165,22 +178,22 @@ export function ClosingCard({ focusClose, onBack, onReplay, onClose }: { focusCl
           <Link href="/about" className={LINK}>
             About
           </Link>{' '}
-          for the idea in full and{' '}
+          for the idea, what is simulated and how AI was used, and{' '}
           <Link href="/errors" className={LINK}>
             Errors
           </Link>{' '}
           for every problem. More to try:{' '}
           <Link href="/documents?unlanded=1" className={LINK}>
             documents that landed nowhere
-          </Link>{' '}
-          and{' '}
+          </Link>
+          ,{' '}
           <Link href="/compare?a=v2&b=v3" className={LINK}>
             what changed between versions
           </Link>
-          .
+          , and Client view in the rail, which shows what the household sees.
         </p>
         <p className="text-xs text-muted-foreground">
-          Changes on the shared demo are permanent. To try them, switch to Jo Kimura and choose Firm, then Fresh copy; a fresh copy stays with this browser until you choose Back to the shared engagement.
+          Changes on the shared demo are recorded permanently, and Undo adds another act. To try them, switch to Jo Kimura with the role switcher (top right) and choose Firm, then Fresh copy. A fresh copy stays with this browser for 30 days, or until you choose Back to the shared engagement.
         </p>
       </div>
       <div className="flex items-center justify-between gap-2">

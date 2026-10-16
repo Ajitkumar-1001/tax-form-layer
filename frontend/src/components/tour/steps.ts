@@ -16,10 +16,10 @@ export interface TourStep {
   body: string
   /** Where the stop happens: a staff route, with its query when the query matters. */
   href: string
-  /** CSS selector of what to ring: `[attr="value"]`, `section[attr="value"]` or `#id`, or a comma-separated list of them (the
-   *  first visible match in the page is rung). Only a VISIBLE match counts (earlier
-   *  pages stay mounted, hidden). Absent, or never found: the card shows without a ring. Never a control that writes
-   *  (Reveal, Save, Accept, Dispose, Move clock): the ring is a picture, and a ring invites a click. */
+  /** CSS selector of what to ring: `[attr="value"]`, `[attr="value"] > summary`, `section[attr="value"]` or `#id`, or a comma-separated list of them (the
+   *  first visible match in the page is rung). Only a VISIBLE match counts (earlier pages stay mounted, hidden), and only on
+   *  this stop's own page. Absent, or never found: the card shows without a ring. Never a control that writes (Reveal, Save,
+   *  Accept, Dispose, Move clock): the ring is a picture, and a ring invites a click. */
   anchor?: string
   /** A link inside the card for a closer look. */
   more?: { label: string; href: string }
@@ -28,7 +28,7 @@ export interface TourStep {
 export const STEPS: readonly TourStep[] = [
   {
     id: 'idea',
-    title: 'Every number has a proof',
+    title: 'Every number can show its proof',
     body: 'A return here is a list of claims, and everything people do to clear them is an act in a log nobody can rewrite. Edit a past act in this demo and every later hash breaks, so tampering shows.',
     href: '/about',
     anchor: '[data-tour="chain-demo"]',
@@ -36,24 +36,23 @@ export const STEPS: readonly TourStep[] = [
   {
     id: 'standing',
     title: 'One screen says where the return stands',
-    body: "The overview shows how far the return is, what blocks filing and who has to act, where the money is at stake, and your own next step. It is computed from the work, and dollar effects are estimates from the packet's own rates.",
+    body: "Start with 'Where we are': how far the return is. The rest shows what blocks filing and who acts, where the money is at stake, and your next step. The role switcher (top right) is a demo picker, not a login, and changes whose next step you see. Dollar effects are estimates.",
     href: '/overview',
     anchor: '[aria-labelledby="ov-where"]',
   },
   {
     id: 'checks',
     title: 'The checks already ran',
-    body: 'Nobody hunts for errors. Checks run on load and attach findings to the claims they affect, and the queue sorts them by consequence, filing blockers first, then by money at stake. This tour never presses Save, so nothing is recorded.',
+    body: 'Most problems are found for you. Checks run on load and attach findings to the claims they affect, and the queue sorts them by consequence, filing blockers first, then by money at stake.',
     href: '/queue',
-    // A list: the first visible match is rung. The Next card goes when the queue worklist lands (docs/superpowers/specs/
-    // 2026-10-15-queue-worklist-design.md, section 7) and the top group takes over; drop the first alternative then.
-    anchor: 'section[aria-label="Next"], [data-tour="queue-group"]',
+    // The group's header row, not the whole group: a group can be taller than the window.
+    anchor: '[data-tour="queue-group"] > summary',
     more: { label: 'See what it caught', href: '/r/F8949.B.N1' },
   },
   {
     id: 'proof',
     title: 'Proof sits beside the number',
-    body: 'Open any number to see its Evidence, how it was Built, and its History; keys 1, 2 and 3 switch tabs. Here a broker\'s "not reported" was stored as zero, and the document with the real figure sits beside it.',
+    body: 'Open any number to see its Evidence, how it was Built, and its History. Here a broker\'s "not reported" was stored as zero, and the document with the real figure sits beside it.',
     href: '/r/F8949.B.N1',
     anchor: '[data-tour="claim-tabs"]',
   },
@@ -67,14 +66,14 @@ export const STEPS: readonly TourStep[] = [
   {
     id: 'rules',
     title: 'Rules are enforced, not just displayed',
-    body: 'The required steps are derived from the work, never ticked by hand. Request approval and Submit stay disabled and say why, and the server refuses a sign-off from anyone who prepared the work.',
+    body: 'The required steps are derived from the work, never ticked by hand. Below them, Request approval and Submit stay disabled and say why. The server refuses a reviewer, partner or quality sign-off from anyone who prepared the work, and a sign-off reopens by itself when its evidence changes.',
     href: '/filing',
-    anchor: '#steps',
+    anchor: 'section[aria-labelledby="steps"]',
   },
   {
     id: 'errors',
-    title: 'All 70 problems, and what catches each',
-    body: 'This page lists every problem found in the sample packet, which check raises it, and its live status. Problems no rule can decide are marked as reviewer judgment.',
+    title: 'All 70 problems, and which check raises each',
+    body: 'This is the full list from the error hunt, with the check that raises each. For some no check exists and a reviewer decides; for a few a check runs and raised nothing. The Overview counts what the checks have raised, so its numbers differ.',
     href: '/errors',
     anchor: 'section[aria-label="Summary"]',
   },

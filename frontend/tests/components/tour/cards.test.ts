@@ -10,7 +10,7 @@ const step = (id: string) => STEPS.find((s) => s.id === id)!
 // React separates adjacent text nodes in server output with <!-- -->; the words are what is checked.
 const markup = (html: string) => html.replace(/<!-- -->/g, '')
 const stepCard = (over: Partial<Parameters<typeof StepCard>[0]> = {}) =>
-  markup(renderToString(h(StepCard, { step: STEPS[0], index: 0, total: STEPS.length, focusNext: false, onBack: noop, onNext: noop, onClose: noop, ...over })))
+  markup(renderToString(h(StepCard, { step: STEPS[0], index: 0, total: STEPS.length, focusNext: false, away: false, onBack: noop, onNext: noop, onClose: noop, onReturn: noop, ...over })))
 // A disabled Back button: the attribute itself (every Button's class list also holds the word "disabled:").
 const backDisabled = /<button[^>]*\sdisabled=""[^>]*>(?:(?!<\/button>).)*Back/
 
@@ -30,10 +30,15 @@ describe('WelcomeCard, on a first visit', () => {
     expect(html).toContain('about four minutes')
     expect(html).toContain('never changes any data')
   })
+
+  it('says the app is read-only while the tour is open, and how to start it again later', () => {
+    expect(html).toContain('while it is open the app is read-only')
+    expect(html).toContain('open search and type tour')
+  })
 })
 
 describe('WelcomeCard, for a tour left unfinished', () => {
-  const html = markup(renderToString(h(WelcomeCard, { stops: 7, resume: { index: 2, title: 'The checks already ran' }, onStart: noop, onResume: noop, onSkip: noop })))
+  const html = markup(renderToString(h(WelcomeCard, { stops: 7, resume: { index: 2, title: 'The checks already ran', onResume: noop }, onStart: noop, onSkip: noop })))
 
   it('offers it back, saying where the visitor was', () => {
     expect(html).toContain('Pick up the tour?')
@@ -76,7 +81,21 @@ describe('StepCard', () => {
   })
 
   it('announces each stop to a screen reader through a polite live region', () => {
-    expect(stepCard()).toMatch(/aria-live="polite">Stop 1 of /)
+    expect(stepCard()).toMatch(/aria-live="polite" aria-atomic="true">Stop 1 of /)
+  })
+
+  it('says so when the visitor has left the stop\'s page, and offers the way back; otherwise says nothing', () => {
+    const away = stepCard({ away: true })
+    expect(away).toContain('You have left this stop.')
+    expect(away).toContain('Go back to it')
+    expect(stepCard({ away: false })).not.toContain('You have left this stop.')
+  })
+
+  it('never outgrows the window, and keeps an edge in forced colors, where box shadows disappear', () => {
+    const html = stepCard()
+    expect(html).toContain('max-h-[calc(100svh-14.5rem)]')
+    expect(html).toContain('overflow-y-auto')
+    expect(html).toContain('forced-colors:outline')
   })
 
   it('docks bottom left beside the rail at either width, and as a sheet above the gate bar on a phone', () => {
@@ -102,7 +121,9 @@ describe('ClosingCard', () => {
   })
 
   it('says that shared changes are permanent and where a copy to experiment in comes from, and how to get back', () => {
-    expect(html).toContain('permanent')
+    expect(html).toContain('recorded permanently')
+    expect(html).toContain('Undo adds another act')
+    expect(html).toContain('30 days')
     expect(html).toContain('Fresh copy')
     expect(html).toContain('Back to the shared engagement')
   })

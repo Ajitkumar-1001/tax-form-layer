@@ -28,7 +28,7 @@ The in-app [About](https://miraflores-workpaper-seven.vercel.app/about) page has
 The role switcher (top right) lists every staff member and both clients. It is a demo identity picker, not a login. The server still enforces the rules for whoever you pick.
 
 1. **Overview** (`/overview`, as Priya Raman, preparer, the default). Where the return stands, what blocks filing and who acts on it, the money at stake, who works each area, and your next step with the act that takes it.
-2. **Queue** ([`/queue`](https://miraflores-workpaper-seven.vercel.app/queue)). The Next card shows the biggest open problem and the act that clears it. Press <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> to jump anywhere.
+2. **Queue** ([`/queue`](https://miraflores-workpaper-seven.vercel.app/queue)). Every open problem, grouped from what blocks filing down, each group sorted by the money at stake. Click a row to see its evidence and the act that clears it in a drawer beside the list. Press <kbd>?</kbd> for the keyboard shortcuts and <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> to jump anywhere.
 3. **Trace any number.** Every claim, document, act and finding has a URL under `/r/…`, for example [`/r/F1040.26`](https://miraflores-workpaper-seven.vercel.app/r/F1040.26). Keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> switch between Evidence, how the value was Built, and its History.
 4. **Masked, but comparable.** Open [`/r/household:theo%23ssn`](https://miraflores-workpaper-seven.vercel.app/r/household:theo%23ssn): SSNs stay masked, but equality tags still show that `•••-••-3309 ≠ •••-••-3390`. **Don't press Reveal on the shared demo:** every reveal, granted or refused, is logged for good. To see Marcus Bell (a preparer without data clearance) refused, make a Fresh copy first (the note below this list), switch to him there, and press Reveal.
 5. **Compare** return versions, last year and what-ifs claim by claim, or see [what changed since you last looked](https://miraflores-workpaper-seven.vercel.app/compare?since=me).
@@ -80,7 +80,7 @@ No environment file is needed locally. The database URL and both secrets have de
 |---|---|
 | `pnpm dev` | Dev server |
 | `pnpm build` / `pnpm start` | Production build and server |
-| `pnpm test` | 454 Vitest tests, most pinned against the real packet. Needs the Postgres container above. |
+| `pnpm test` | Over 770 Vitest tests, most pinned against the real packet. Needs the Postgres container above. |
 | `pnpm vitest run tests/lib/model` | The model and check tests only, no database needed |
 | `pnpm typecheck` / `pnpm lint` | `tsc --noEmit` / ESLint |
 

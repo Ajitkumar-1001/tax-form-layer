@@ -8,9 +8,9 @@ const ROUTES = new Set<string>(NAV.map((n) => n.href))
 const routeOf = (href: string) => href.split('?')[0]
 // A staff screen (the client portal has no tour) or a trace page.
 const staffRoute = (href: string) => href.startsWith('/') && routeOf(href) !== '/client' && (ROUTES.has(routeOf(href)) || routeOf(href).startsWith('/r/'))
-// `[attr="value"]`, `section[attr="value"]` or `#id`, alone or as a comma-separated list: the forms anchors.test.ts can look for
-// in the source.
-const ONE = '(?:section)?\\[[\\w-]+="[^"]+"\\]|#[\\w-]+'
+// `[attr="value"]` (optionally ` > summary`), `section[attr="value"]` or `#id`, alone or as a comma-separated list: the forms
+// anchors.test.ts can look for in the source.
+const ONE = '(?:section)?\\[[\\w-]+="[^"]+"\\](?: > summary)?|#[\\w-]+'
 const ANCHOR_FORM = new RegExp(`^(?:${ONE})(?:\\s*,\\s*(?:${ONE}))*$`)
 
 describe('STEPS', () => {
