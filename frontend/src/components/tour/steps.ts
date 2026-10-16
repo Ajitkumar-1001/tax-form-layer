@@ -38,7 +38,7 @@ export const STEPS: readonly TourStep[] = [
     title: 'One screen says where the return stands',
     body: "Start with 'Where we are': how far the return is. The rest shows what blocks filing and who acts, where the money is at stake, and your next step. The role switcher (top right) is a demo picker, not a login, and changes whose next step you see. Dollar effects are estimates.",
     href: '/overview',
-    anchor: '[aria-labelledby="ov-where"]',
+    anchor: '#ov-where',
   },
   {
     id: 'checks',
