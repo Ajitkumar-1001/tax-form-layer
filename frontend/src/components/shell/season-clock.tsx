@@ -72,7 +72,7 @@ export function SeasonClock({ className }: { className?: string }) {
     <div className={cn('flex min-w-0', className)}>
       {/* One rounded chip: the time, the season so far (xl up), then the next event (a button), a hairline before it. */}
       <div className="flex h-8 w-full min-w-0 items-center overflow-hidden rounded-full bg-muted text-xs ring-1 ring-inset ring-foreground/10 sm:w-fit xl:w-full">
-        <span className="flex h-full shrink-0 items-center gap-1.5 px-3 text-foreground" title="Season clock (UTC). It only moves forward, through clock acts.">
+        <span data-tour="season-time" className="flex h-full shrink-0 items-center gap-1.5 px-3 text-foreground" title="Season clock (UTC). It only moves forward, through clock acts.">
           <ClockIcon className="size-3.5 text-foreground/60" />
           <span className="whitespace-nowrap tabular-nums">{formatClock(state.clock)}</span>
         </span>

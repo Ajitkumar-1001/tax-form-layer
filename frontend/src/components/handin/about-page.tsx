@@ -5,6 +5,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import Link from 'next/link'
 import { ChainBeam, HeroBackdrop, ModelBackdrop } from '@/components/effects/about-effects'
+import { TourLink } from '@/components/tour/tour-link'
 import { MagicCard } from '@/components/ui/magic-card'
 import { Marquee } from '@/components/ui/marquee'
 import { NumberTicker } from '@/components/ui/number-ticker'
@@ -119,6 +120,9 @@ export function AboutPage() {
             <p style={at(2)} className="rise max-w-xl text-base">
               How to read this workpaper in five minutes: the core idea, the data model, what is simulated, and how AI was used.
             </p>
+            <div style={at(3)} className="rise">
+              <TourLink />
+            </div>
           </div>
           <div style={at(3)} className="rise relative">
             <ChainDemo />

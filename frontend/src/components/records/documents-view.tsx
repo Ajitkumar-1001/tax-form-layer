@@ -45,7 +45,7 @@ export function DocumentsView() {
     <div className="flex flex-col gap-4 p-4 sm:p-6 print:p-0">
       <header className="flex flex-col gap-1">
         <h1 className="text-lg font-semibold">Documents</h1>
-        <p className="text-sm text-muted-foreground">
+        <p data-tour="unlanded" className="text-sm text-muted-foreground">
           Every document lands on a line or says why not. <span className="font-medium text-foreground">{open}</span> used document
           {open === 1 ? '' : 's'} with no landed line and no disposition (step 4). “Unlanded” means the pipeline marked it used, but no number came
           from it.

@@ -14,8 +14,8 @@ const ONE = '(?:section)?\\[[\\w-]+="[^"]+"\\](?: > summary)?|#[\\w-]+'
 const ANCHOR_FORM = new RegExp(`^(?:${ONE})(?:\\s*,\\s*(?:${ONE}))*$`)
 
 describe('STEPS', () => {
-  it('has the first release: seven stops', () => {
-    expect(STEPS.length).toBeGreaterThanOrEqual(7)
+  it('has the full tour: nine stops', () => {
+    expect(STEPS.length).toBe(9)
   })
 
   it('has unique, kebab-case ids, and none is the closing card', () => {

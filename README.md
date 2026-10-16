@@ -27,6 +27,8 @@ The in-app [About](https://miraflores-workpaper-seven.vercel.app/about) page has
 
 The role switcher (top right) lists every staff member and both clients. It is a demo identity picker, not a login. The server still enforces the rules for whoever you pick.
 
+**Or take the guided tour:** the app offers it on your first visit, or open [`/about?tour=1`](https://miraflores-workpaper-seven.vercel.app/about?tour=1). It only looks; it never changes data.
+
 1. **Overview** (`/overview`, as Priya Raman, preparer, the default). Where the return stands, what blocks filing and who acts on it, the money at stake, who works each area, and your next step with the act that takes it.
 2. **Queue** ([`/queue`](https://miraflores-workpaper-seven.vercel.app/queue)). Every open problem, grouped from what blocks filing down, each group sorted by the money at stake. Click a row to see its evidence and the act that clears it in a drawer beside the list. Press <kbd>?</kbd> for the keyboard shortcuts and <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> to jump anywhere.
 3. **Trace any number.** Every claim, document, act and finding has a URL under `/r/…`, for example [`/r/F1040.26`](https://miraflores-workpaper-seven.vercel.app/r/F1040.26). Keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> switch between Evidence, how the value was Built, and its History.

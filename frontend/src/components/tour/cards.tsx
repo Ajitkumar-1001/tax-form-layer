@@ -68,7 +68,7 @@ export function WelcomeCard({
           <p id="tour-body" className="text-muted-foreground">
             {resume
               ? `You were on stop ${resume.index + 1} of ${stops}: ${resume.title}.`
-              : `${stops} stops through the real app, about four minutes: what it does, why it is different, and where the proof is. The tour only looks; it never changes any data, and while it is open the app is read-only. You can start it again later: open search and type tour.`}
+              : `${stops} stops through the real app, about five minutes: what it does, why it is different, and where the proof is. The tour only looks; it never changes any data, and while it is open the app is read-only. You can start it again later: open search and type tour.`}
           </p>
         </div>
       </div>
@@ -182,15 +182,7 @@ export function ClosingCard({ focusClose, onBack, onReplay, onClose }: { focusCl
           <Link href="/errors" className={LINK}>
             Errors
           </Link>{' '}
-          for every problem. More to try:{' '}
-          <Link href="/documents?unlanded=1" className={LINK}>
-            documents that landed nowhere
-          </Link>
-          ,{' '}
-          <Link href="/compare?a=v2&b=v3" className={LINK}>
-            what changed between versions
-          </Link>
-          , and Client view in the rail, which shows what the household sees.
+          for every problem. Client view, in the rail, shows what the household sees.
         </p>
         <p className="text-xs text-muted-foreground">
           Changes on the shared demo are recorded permanently, and Undo adds another act. To try them, switch to Jo Kimura with the role switcher (top right) and choose Firm, then Fresh copy. A fresh copy stays with this browser for 30 days, or until you choose Back to the shared engagement.

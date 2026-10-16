@@ -27,7 +27,7 @@ describe('WelcomeCard, on a first visit', () => {
 
   it('says how long it takes and promises that the tour only looks', () => {
     expect(html).toContain('7 stops')
-    expect(html).toContain('about four minutes')
+    expect(html).toContain('about five minutes')
     expect(html).toContain('never changes any data')
   })
 
@@ -111,11 +111,9 @@ describe('StepCard', () => {
 describe('ClosingCard', () => {
   const html = markup(renderToString(h(ClosingCard, { focusClose: false, onBack: noop, onReplay: noop, onClose: noop })))
 
-  it('points at the two hand-in pages, offers the two stops left out, and offers a replay', () => {
+  it('points at the two hand-in pages and offers a replay', () => {
     expect(html).toContain('href="/about"')
     expect(html).toContain('href="/errors"')
-    expect(html).toContain('href="/documents?unlanded=1"')
-    expect(html).toContain('href="/compare?a=v2&amp;b=v3"')
     expect(html).toContain('Replay')
     expect(html).toContain('Close')
   })

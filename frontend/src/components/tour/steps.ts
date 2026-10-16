@@ -57,6 +57,14 @@ export const STEPS: readonly TourStep[] = [
     anchor: '[data-tour="claim-tabs"]',
   },
   {
+    id: 'evidence',
+    title: 'A document no number came from',
+    body: 'Every document should land on a line or say why not. The paystub D73 is marked used, yet no number came from it. It holds the California-period wages, so the whole-year W-2 figure overstates California wages.',
+    href: '/documents?unlanded=1',
+    anchor: '[data-tour="unlanded"]',
+    more: { label: 'Open D73', href: '/r/D73' },
+  },
+  {
     id: 'sensitive',
     title: 'Sensitive values are masked but comparable',
     body: "The organizer's SSN ends in 3309 and the 2024 return's in 3390, so even a preparer without clearance (Marcus Bell) can spot the mismatch. Reveal is logged, even when refused, so this tour never presses it.",
@@ -69,6 +77,13 @@ export const STEPS: readonly TourStep[] = [
     body: 'The required steps are derived from the work, never ticked by hand. Below them, Request approval and Submit stay disabled and say why. The server refuses a reviewer, partner or quality sign-off from anyone who prepared the work, and a sign-off reopens by itself when its evidence changes.',
     href: '/filing',
     anchor: 'section[aria-labelledby="steps"]',
+  },
+  {
+    id: 'time',
+    title: 'Time and attribution',
+    body: 'The season clock in the header is shared and only moves forward; a message that arrives later appears when the clock reaches its date. Below, every line that differs between versions says what changed it: an engine version or a named adjustment. Look, do not touch: moving the clock is permanent.',
+    href: '/compare?a=v2&b=v3',
+    anchor: '[data-tour="season-time"]',
   },
   {
     id: 'errors',
