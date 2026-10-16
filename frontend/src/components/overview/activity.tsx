@@ -7,7 +7,7 @@ import { formatMoney } from '@/components/atoms'
 import { type SinceMe, sinceMe } from '@/components/records/compare'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/components/workspace/context'
-import { VERB } from '@/components/workspace/log'
+import { VERB, actorName, targetText } from '@/components/workspace/log'
 import type { Act } from '@/lib/model/acts'
 import { OvMasked, ReplayContext } from './replay-safe'
 
@@ -31,7 +31,6 @@ export function ActivitySection() {
   const { model, state, viewer, identities, lastSeenSeq, markSeen } = useWorkspace()
   if (replaying) return null
   const batches = batchesOf(state.acts)
-  const nameOf = (id: string) => identities.find((v) => v.id === id)?.name ?? (id === 'system' ? 'System' : id)
   const byOthers = state.acts.filter((a) => a.seq > lastSeenSeq && a.actor !== viewer.id && a.type !== 'view_sensitive').length
   // sinceMe projects the log a second time, so it runs only when there is a log.
   const since = batches.length > 0 ? sinceLine(byOthers, sinceMe(model, state, viewer.id, lastSeenSeq)) : ''
@@ -51,13 +50,20 @@ export function ActivitySection() {
               .map((batch) => {
                 const a = batch[0]
                 const verb = VERB[a.type]
+                const what = targetText(a.target)
                 const fresh = batch.some((x) => x.seq > lastSeenSeq && x.actor !== viewer.id)
                 return (
                   <li key={a.seq} className="min-w-0 leading-snug">
                     {fresh && <span className="mr-1.5 rounded-sm bg-info-soft px-1 py-px text-[11px] font-medium text-info">New</span>}
-                    <span className="font-medium">{nameOf(a.actor)}</span>
-                    {` ${verb.charAt(0).toLowerCase()}${verb.slice(1)} `}
-                    <OvMasked text={a.target} context={`act:${a.seq}`} />
+                    <span className="font-medium">{actorName(identities, a.actor)}</span>
+                    {` ${verb.charAt(0).toLowerCase()}${verb.slice(1)}`}
+                    {/* The target in plain words ("change 12", an area's label); empty for the season clock. */}
+                    {what && (
+                      <>
+                        {' '}
+                        <OvMasked text={what} context={`act:${a.seq}`} />
+                      </>
+                    )}
                     {batch.length > 1 && ` (${batch.length} changes)`}
                     <span className="text-muted-foreground">{` · ${a.season_at.slice(0, 10)}`}</span>
                   </li>

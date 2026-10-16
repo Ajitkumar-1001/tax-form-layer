@@ -25,6 +25,11 @@ export function formatMoney(value: number | null | undefined, signed = false): s
   return signed ? `+${abs}` : abs
 }
 
+/** "Ama Okafor-Lindqvist" → "AO": the first letters of the first two words, for avatars. */
+export function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+}
+
 /** "2026-06-23T06:05:00Z" → "2026-06-23 06:05" (packet and season times are UTC). */
 export const formatClock = (iso: string): string => iso.slice(0, 16).replace('T', ' ')
 

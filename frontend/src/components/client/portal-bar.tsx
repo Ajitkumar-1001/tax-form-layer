@@ -27,7 +27,7 @@ export function PortalBar() {
               ))}
             </select>
           </label>
-          <Link href="/" className="ml-auto underline underline-offset-2">
+          <Link href="/overview" className="ml-auto underline underline-offset-2">
             Back to staff view
           </Link>
         </div>

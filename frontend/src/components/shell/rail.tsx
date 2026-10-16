@@ -20,7 +20,7 @@ type Href = (typeof NAV)[number]['href']
 
 // Client view, Errors and About are not the workflow: the last group has no heading and sits apart.
 const GROUPS: { label?: string; hrefs: Href[] }[] = [
-  { label: 'Work', hrefs: ['/', '/queue', '/documents', '/records', '/compare'] },
+  { label: 'Work', hrefs: ['/overview', '/queue', '/documents', '/records', '/compare'] },
   { label: 'Sign and file', hrefs: ['/filing', '/notice'] },
   { label: 'Admin', hrefs: ['/firm'] },
   { hrefs: ['/client', '/errors', '/about'] },
@@ -56,7 +56,7 @@ function Brand() {
       {/* The first row is the top bar's height, so it reads as one band with it: the mark and the app's name. The return
           follows below on its own lines (it wraps instead of truncating). */}
       <Link
-        href="/"
+        href="/about"
         className="group/home flex h-14 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-foreground"
       >
         <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground transition-transform duration-200 group-hover/home:scale-105 motion-reduce:transition-none">

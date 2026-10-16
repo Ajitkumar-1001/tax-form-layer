@@ -41,7 +41,7 @@ export function BlockersSection({ blockers }: { blockers: Blockers }) {
               <div className="flex min-w-0 flex-col gap-0.5">
                 {/* Who acts shares the title's line: one line less per blocker keeps Money at stake in the first screen. */}
                 <p className="flex flex-wrap items-baseline gap-x-3">
-                  <Link href={b.href} className="font-medium underline-offset-2 hover:underline">
+                  <Link href={b.href} className="font-medium text-primary underline-offset-2 hover:underline">
                     {b.step === null ? b.label : `Step ${b.step}: ${b.label}`}
                   </Link>
                   <span className="text-xs text-muted-foreground">

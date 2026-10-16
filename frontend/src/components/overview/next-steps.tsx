@@ -54,13 +54,19 @@ export function NextStepsSection({ next }: { next: NextSteps }) {
 /**
  * The one control is the act itself when there is one (the page's only primary button), else a link to the claim. From
  * `sm` it sits beside the text, not under it, so "Money at stake" starts in a 1440x900 first screen (spec §8); a refusal's
- * reason wraps under the button within its column.
+ * reason wraps under the button within its column. Like an Item row, it is a group named by its "what", so the page's
+ * primary action is never heard as a bare "Start, button".
  */
 function TopStep({ top }: { top: NonNullable<NextSteps['top']> }) {
+  const id = useId()
   return (
-    <div className="flex flex-col gap-3 rounded-lg bg-primary/5 p-3 text-sm ring-1 ring-primary/15 ring-inset sm:flex-row sm:items-center sm:gap-4">
+    <div
+      role="group"
+      aria-labelledby={id}
+      className="flex flex-col gap-3 rounded-lg bg-primary/5 p-3 text-sm ring-1 ring-primary/15 ring-inset sm:flex-row sm:items-center sm:gap-4"
+    >
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <p className="font-medium wrap-break-word">
+        <p id={id} className="font-medium wrap-break-word">
           <OvMasked text={top.what} context={top.ref} />
         </p>
         <p className="text-muted-foreground wrap-break-word">

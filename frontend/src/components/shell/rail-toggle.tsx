@@ -7,12 +7,11 @@ import { PanelLeftCloseIcon, PanelLeftOpenIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { inOverlay, isTypingTarget } from './keys'
 
 const KEY = 'wp:rail'
 const WIDE = '(min-width: 80rem)' // xl: from here the rail is labelled unless collapsed
 const LG = '(min-width: 64rem)' // lg: below this there is no rail
-// The queue's shortcut guard (queue-screen.tsx): typing, dialogs, menus and lists keep their own keys.
-const EDITABLE = 'input, textarea, select, [contenteditable="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
 
 /** Whether the rail shows labels, from `<html data-rail>` and whether the viewport is xl or wider. Only the two known
  *  values count; anything else means the default (labelled from xl, icons from lg to xl). */
@@ -64,7 +63,8 @@ export function useRailShortcut(): void {
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.repeat || e.defaultPrevented) return
       if (e.key !== 'b' && e.key !== 'B') return
       if (!matchMedia(LG).matches) return
-      if (e.target instanceof Element && e.target.closest(EDITABLE)) return
+      const el = e.target instanceof Element ? e.target : null
+      if (isTypingTarget(el) || inOverlay(el)) return
       e.preventDefault()
       toggleRail()
     }

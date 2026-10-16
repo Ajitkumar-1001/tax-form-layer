@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { ShieldCheckIcon, ShieldOffIcon } from 'lucide-react'
-import { initials } from '@/components/queue/area-strip'
+import { initials } from '@/components/atoms'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useWorkspace } from '@/components/workspace/context'
 import type { Role, Viewer } from '@/lib/model/state'

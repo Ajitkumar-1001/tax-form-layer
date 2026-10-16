@@ -44,7 +44,7 @@ export function ChainDemo() {
   const edited = texts.some((t, i) => t !== ORIGINAL[i])
 
   return (
-    <div className="flex flex-col gap-5 bg-foreground/[0.05] p-5 sm:p-8">
+    <div data-tour="chain-demo" className="flex flex-col gap-5 bg-foreground/[0.05] p-5 sm:p-8">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-2xl font-semibold">Try to change the past</h2>
         <Button variant="outline" size="sm" disabled={!edited} onClick={() => set(ORIGINAL)}>

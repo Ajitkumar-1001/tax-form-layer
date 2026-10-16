@@ -1,7 +1,7 @@
 // The renderer contract (spec §2.11). Lines, acts and findings cite ev / D## / page ids, never text, so a
 // real-scan DocumentSource (image pages) can replace the simulated one without touching anything above it.
 import type { ReactNode } from 'react'
-import { displayMasked, splitMasked } from '@/lib/model/mask-token'
+import { plainMasked } from '@/lib/model/mask-token'
 import type { ExtractedValue, PacketDocument, Position } from '@/lib/model/packet-types'
 import { locateReads, type MatchKind, type Range } from './locate'
 
@@ -93,8 +93,8 @@ export function anchorWarnings(a: Anchor): string[] {
   return out
 }
 
-/** Text with tokens shown as •••-••-3309, for plain-string sinks such as title attributes. */
-export const plainMasked = (s: string): string => splitMasked(s).map((p) => (typeof p === 'string' ? p : displayMasked(p))).join('')
+// Re-exported so the renderer (simulated-page.tsx) takes it with the rest of this contract.
+export { plainMasked }
 
 /** Tooltip for a read: a mark over its printed text, or a box where nothing matched. Never carries a token. */
 export function readTitle(a: Anchor, printed = ''): string {

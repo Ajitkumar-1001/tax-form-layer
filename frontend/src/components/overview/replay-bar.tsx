@@ -3,14 +3,14 @@
 // change at a time. The committed point lives only in the URL (?at=<seq>&eng=<engagement>), written in place on
 // release and on button clicks, never while dragging: a reload or a copied link keeps the point, and the history
 // API is not flooded. Replay is read-only, so the bar shows masked values masked and offers no Reveal.
-import { useEffect, useEffectEvent, useRef } from 'react'
+import { type RefObject, useEffect, useEffectEvent, useRef } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon, HistoryIcon } from 'lucide-react'
 import { formatClock } from '@/components/atoms/format'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/components/workspace/context'
-import { VERB } from '@/components/workspace/log'
+import { VERB, actorName, targetText } from '@/components/workspace/log'
 import type { Act } from '@/lib/model/acts'
-import { displayMasked, splitMasked } from '@/lib/model/mask-token'
+import { plainMasked } from '@/lib/model/mask-token'
 
 const AT = /^\d{1,15}$/
 
@@ -41,25 +41,38 @@ export function writeReplayCursor(point: { seq: number; engagement: string } | n
   window.history.replaceState(null, '', `${window.location.pathname}${p.size ? `?${p}` : ''}${window.location.hash}`)
 }
 
-const plain = (text: string) => splitMasked(text).map((p) => (typeof p === 'string' ? p : displayMasked(p))).join('')
+type Focusable = Pick<HTMLElement, 'offsetParent' | 'focus'>
 
-export function ReplayBar({ cursor, drag, onDrag }: {
+/**
+ * Where "Back to live" puts focus: the Replay button (spec §5.4), or the page's h1 when that button is not there to
+ * take it. It is `hidden` below `sm` (no offsetParent) and not rendered on an empty log, yet a copied ?at= link opens
+ * the bar on a phone, and ?at=0 opens it on an empty log; either way focus must not drop to <body>.
+ */
+export function focusAfterLive(toggle: Focusable | null, heading: Focusable | null): void {
+  if (toggle && toggle.offsetParent !== null) toggle.focus()
+  else heading?.focus()
+}
+
+export function ReplayBar({ cursor, drag, onDrag, heading }: {
   cursor: { index: number; seq: number } | null
   /** The thumb while it is dragged and not yet released; null otherwise. */
   drag: number | null
   /** The dragged index on every input; null when a button moves the point. */
   onDrag: (index: number | null) => void
+  /** The page's h1 (tabIndex -1): focus lands there on "Back to live" when the Replay button is hidden or absent. */
+  heading: RefObject<HTMLHeadingElement | null>
 }) {
   const { state, engagement, identities } = useWorkspace()
   const toggle = useRef<HTMLButtonElement>(null)
   const acts = state.acts
   const n = acts.length
-  const names: Record<string, string> = Object.fromEntries(identities.map((v) => [v.id, v.name]))
-  const who = (a: Act) => names[a.actor] ?? (a.actor === 'system' ? 'System' : a.actor)
-  const did = (a: Act) => `${who(a)} ${VERB[a.type].toLowerCase()}`
+  const did = (a: Act) => `${actorName(identities, a.actor)} ${VERB[a.type].toLowerCase()}`
   const describe = (i: number) => {
     const a = acts[i - 1]
-    return a ? `Change ${i} of ${n}: ${did(a)} ${plain(a.target)}, ${formatClock(a.season_at)}` : 'Before the first change'
+    if (!a) return 'Before the first change'
+    // The target in plain words; the season clock's is empty, so join only what is there.
+    const what = [did(a), plainMasked(targetText(a.target))].filter(Boolean).join(' ')
+    return `Change ${i} of ${n}: ${what}, ${formatClock(a.season_at)}`
   }
   const banner = (c: { index: number; seq: number }) => {
     const a = acts[c.index - 1]
@@ -77,7 +90,7 @@ export function ReplayBar({ cursor, drag, onDrag }: {
   const live = () => {
     onDrag(null)
     writeReplayCursor(null)
-    toggle.current?.focus()
+    focusAfterLive(toggle.current, heading.current)
   }
   const index = cursor === null ? 0 : (drag ?? cursor.index)
 

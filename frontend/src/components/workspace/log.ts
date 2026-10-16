@@ -2,6 +2,7 @@
 import type { Act, ActInput, ActType } from '@/lib/model/acts'
 import { authorize } from '@/lib/model/authorize'
 import type { Model } from '@/lib/model/build'
+import { AREA_LABEL, type AreaKey } from '@/lib/model/ids'
 import { project } from '@/lib/model/project'
 import type { Viewer } from '@/lib/model/state'
 
@@ -49,6 +50,28 @@ export const VERB: Record<ActType, string> = {
   reply: 'Replied', resolve: 'Resolved', attach: 'Attached', signoff: 'Signed off', request_approval: 'Approval requested',
   client_approve: 'Approved', file: 'Filed', amend_open: 'Amendment opened', revert: 'Reverted', assign: 'Assigned',
   time: 'Time logged', clock: 'Clock moved', view_sensitive: 'Viewed', agency_result: 'Agency result',
+}
+
+/**
+ * An act's target in plain words (spec §6): `area:<key>` is the area's label, `act:<n>` is "change n", a batch is
+ * "a group of changes", `return` is "the return", and the season clock's target is empty (its verb says it all).
+ * Claim, document and finding ids pass through: they are the app's own words everywhere, and may hold mask tokens.
+ */
+export function targetText(target: string): string {
+  if (target === 'return') return 'the return'
+  if (target === 'season') return ''
+  if (target.startsWith('area:')) {
+    const key = target.slice(5)
+    return AREA_LABEL[key as AreaKey] ?? key.replaceAll('_', ' ')
+  }
+  if (/^act:\d+$/.test(target)) return `change ${target.slice(4)}`
+  if (target.startsWith('batch:')) return 'a group of changes'
+  return target
+}
+
+/** Who did an act: the identity's name, "System" for simulated agency results, else the raw id. */
+export function actorName(identities: Viewer[], id: string): string {
+  return identities.find((v) => v.id === id)?.name ?? (id === 'system' ? 'System' : id)
 }
 
 /** Toast text for a posted batch. System acts (simulated agency results) are not the user's. */

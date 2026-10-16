@@ -27,13 +27,14 @@ The in-app [About](https://miraflores-workpaper-seven.vercel.app/about) page has
 
 The role switcher (top right) lists every staff member and both clients. It is a demo identity picker, not a login. The server still enforces the rules for whoever you pick.
 
-1. **Queue** (as Priya Raman, preparer, the default). The Next card shows the biggest open problem and the act that clears it. Press <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> to jump anywhere.
-2. **Trace any number.** Every claim, document, act and finding has a URL under `/r/…`, for example [`/r/F1040.26`](https://miraflores-workpaper-seven.vercel.app/r/F1040.26). Keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> switch between Evidence, how the value was Built, and its History.
-3. **Switch to Marcus Bell**, a preparer without data clearance. SSNs stay masked, but equality tags still show that `•••-••-3309 ≠ •••-••-3390`. Reveal is refused, and the refusal is logged.
-4. **Compare** return versions, last year and what-ifs claim by claim, or see [what changed since you last looked](https://miraflores-workpaper-seven.vercel.app/compare?since=me).
-5. **Filing** (as Helen Strand, partner) shows sign-offs, the partner desk, client approval, e-file, and the freeze and amendment that follow.
-6. **Client view** is the household's own portal: questions, what's still needed, approve and sign.
-7. **Errors** lists all 70 problems in the sample packet, the checks that catch each one and their live status. Problems no rule can decide are marked as reviewer judgment.
+1. **Overview** (`/overview`, as Priya Raman, preparer, the default). Where the return stands, what blocks filing and who acts on it, the money at stake, who works each area, and your next step with the act that takes it.
+2. **Queue** ([`/queue`](https://miraflores-workpaper-seven.vercel.app/queue)). The Next card shows the biggest open problem and the act that clears it. Press <kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> to jump anywhere.
+3. **Trace any number.** Every claim, document, act and finding has a URL under `/r/…`, for example [`/r/F1040.26`](https://miraflores-workpaper-seven.vercel.app/r/F1040.26). Keys <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> switch between Evidence, how the value was Built, and its History.
+4. **Masked, but comparable.** Open [`/r/household:theo%23ssn`](https://miraflores-workpaper-seven.vercel.app/r/household:theo%23ssn): SSNs stay masked, but equality tags still show that `•••-••-3309 ≠ •••-••-3390`. **Don't press Reveal on the shared demo:** every reveal, granted or refused, is logged for good. To see Marcus Bell (a preparer without data clearance) refused, make a Fresh copy first (the note below this list), switch to him there, and press Reveal.
+5. **Compare** return versions, last year and what-ifs claim by claim, or see [what changed since you last looked](https://miraflores-workpaper-seven.vercel.app/compare?since=me).
+6. **Filing** (as Helen Strand, partner) shows sign-offs, the partner desk, client approval, e-file, and the freeze and amendment that follow.
+7. **Client view** is the household's own portal: questions, what's still needed, approve and sign.
+8. **Errors** lists all 70 problems in the sample packet, the checks that catch each one and their live status. Problems no rule can decide are marked as reviewer judgment.
 
 > **Want to make changes?** Switch to Jo Kimura (firm administrator) and choose **Firm › Fresh copy**. You get an empty log on the same packet, and the shared demo stays untouched.
 
@@ -80,7 +81,7 @@ No environment file is needed locally. The database URL and both secrets have de
 | `pnpm dev` | Dev server |
 | `pnpm build` / `pnpm start` | Production build and server |
 | `pnpm test` | 454 Vitest tests, most pinned against the real packet. Needs the Postgres container above. |
-| `pnpm vitest run src/lib/model` | The model and check tests only, no database needed |
+| `pnpm vitest run tests/lib/model` | The model and check tests only, no database needed |
 | `pnpm typecheck` / `pnpm lint` | `tsc --noEmit` / ESLint |
 
 | Variable | Local | Production |
@@ -114,15 +115,13 @@ frontend/
   src/lib/model/              pure, isomorphic: claims, checks/, projection, authorize, tax effects
   src/lib/server/             Postgres act log, masking, reveal logging, simulated e-file
   src/db/schema.sql           acts table, append-only trigger
-  src/app/(work)/             staff screens: queue, documents, records, compare, filing, firm, notice
+  src/app/(work)/             staff screens: overview, queue, documents, records, compare, filing, firm, notice
   src/app/client/             client portal
   src/app/api/                acts, bootstrap, packet, reveal, identity, engagement
   src/components/             screen components and act forms
-  ARCHITECTURE.md             module contract, API and the rules the server enforces
-  DESIGN.md                   design system notes
 ```
 
-Read [`frontend/ARCHITECTURE.md`](frontend/ARCHITECTURE.md) before you change the model or the API.
+Before you change the model or the API, read [`frontend/src/lib/model/authorize.ts`](frontend/src/lib/model/authorize.ts) (the firm's rules, listed above under "Rules the server enforces") and [`frontend/src/lib/model/project.ts`](frontend/src/lib/model/project.ts) (the one projection that every screen and the server read).
 
 ## Deploying
 

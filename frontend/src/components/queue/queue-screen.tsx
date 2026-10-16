@@ -1,6 +1,6 @@
 'use client'
-// The Queue (spec §3.1), home for preparer, reviewer and partner: Next card, area strip and grouped rows on
-// the left; the claim pane for ?c=<ref> on the right. Filters live in the URL (area, mine, q).
+// The Queue: the list of work grouped by consequence, and the claim pane for ?c=<ref> on the right. Filters live in the
+// URL (area, mine, q). Picks are kept until acted on or cleared, but the bulk bar counts and acts only on visible ones.
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
@@ -8,42 +8,80 @@ import { SearchIcon, XIcon } from 'lucide-react'
 import { RefLink, refHref } from '@/components/atoms'
 import { useOpenAct } from '@/components/acts/act-host'
 import { type DispositionT, fixToRequest } from '@/components/acts/draft'
+import { inOverlay, isTypingTarget } from '@/components/shell/keys'
 import { ClaimPane } from '@/components/trace/claim-pane'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Kbd } from '@/components/ui/kbd'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useWorkspace } from '@/components/workspace/context'
 import type { ActInput } from '@/lib/model/acts'
-import { AREA_LABEL, type AreaKey } from '@/lib/model/ids'
-import type { AuthResult } from '@/lib/model/state'
+import { AREAS, AREA_LABEL } from '@/lib/model/ids'
+import { plainMasked } from '@/lib/model/mask-token'
+import type { State } from '@/lib/model/state'
 import { cn } from '@/lib/utils'
-import { AreaStrip } from './area-strip'
 import { BulkBar } from './bulk-bar'
-import { NextCard } from './next-card'
 import {
-  GROUPS, type GroupKey, type NextAction, type Row, SUPPORT_LEGEND, type TiedRow,
-  acceptInputs, acceptLevel, buildQueue, chunk, disposeInputs, lastUndoTarget, nextAction, parseFilters,
+  GROUPS, type GroupKey, type Row, type TiedRow,
+  acceptInputs, acceptLevel, buildQueue, chunk, disposeInputs, lastUndoTarget, parseFilters,
 } from './queue-model'
-import { GroupView, RowView } from './queue-rows'
+import { GroupView, RowView, countLabel } from './queue-rows'
 
-const LEARN_KEY = 'wp:learn'
+export const HIDE_EXPLAIN_KEY = 'wp:hide-explain'
+
+/** The area filter's choices; '' is "All areas" (no ?area). */
+export const AREA_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'All areas' },
+  ...AREAS.map((a) => ({ value: a, label: AREA_LABEL[a] })),
+]
+
 const TIED = GROUPS.find((g) => g.key === 'tied')!
 const NOT_REVIEWER = 'Accepting a tied check is a reviewer or partner act.'
 
-function readLearn(): boolean {
+/** The picks the bulk bar counts and acts on: rows in open groups that match the filters (the rows j/k reach). */
+export function visiblePicked(picked: readonly string[], navRows: readonly { key: string }[]): string[] {
+  const reachable = new Set(navRows.map((r) => r.key))
+  return picked.filter((k) => reachable.has(k))
+}
+
+/** A group's select-all checkbox: none, some or all of its row keys picked. */
+export function pickState(picked: readonly string[], keys: readonly string[]): 'none' | 'some' | 'all' {
+  const n = keys.filter((k) => picked.includes(k)).length
+  return n === 0 ? 'none' : n === keys.length ? 'all' : 'some'
+}
+
+/** Bulk accept takes each claim a check tied out (read_ok) once and skips every other row. A UI guard against
+ * select-all; the server's rules are unchanged. */
+export function splitTied<R extends Pick<Row, 'claim'>>(rows: readonly R[], claims: State['claims']): { claims: string[]; skipped: R[] } {
+  const tied = new Set<string>()
+  const skipped: R[] = []
+  for (const r of rows) {
+    if (r.claim && claims[r.claim]?.status === 'read_ok') tied.add(r.claim)
+    else skipped.push(r)
+  }
+  return { claims: [...tied], skipped }
+}
+
+/** Toast text: tokens in their display form first, then the clip, so a cut never lands inside a token. */
+export function clipPlain(text: string, n = 40): string {
+  const plain = plainMasked(text)
+  return plain.length > n ? `${plain.slice(0, n)}…` : plain
+}
+
+function readHidden(): boolean {
   try {
-    return localStorage.getItem(LEARN_KEY) === '1'
+    return localStorage.getItem(HIDE_EXPLAIN_KEY) === '1'
   } catch {
     return false
   }
 }
 
-function writeLearn(on: boolean): void {
+function writeHidden(hide: boolean): void {
   try {
-    localStorage.setItem(LEARN_KEY, on ? '1' : '0')
+    if (hide) localStorage.setItem(HIDE_EXPLAIN_KEY, '1')
+    else localStorage.removeItem(HIDE_EXPLAIN_KEY)
   } catch {
-    // storage unavailable: learn mode lasts for this page view only
+    // storage unavailable: the choice lasts for this page view only
   }
 }
 
@@ -61,14 +99,14 @@ function setParams(updates: Record<string, string | null>, push = false): void {
 
 export function QueueScreen() {
   const ws = useWorkspace()
-  const { model, state, viewer, identities, lastSeenSeq } = ws
+  const { model, state, viewer, lastSeenSeq } = ws
   const params = useSearchParams()
   const router = useRouter()
   const openAct = useOpenAct()
-  const [learn, setLearn] = useState(readLearn)
-  const [nextOpen, setNextOpen] = useState(learn)
+  const [hideExplain, setHideExplain] = useState(readHidden)
   const [closed, setClosed] = useState<GroupKey[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
+  // Never pruned when a filter changes, so undoing the filter restores the selection.
   const [picked, setPicked] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState(params.get('q') ?? '')
@@ -77,12 +115,11 @@ export function QueueScreen() {
   const filters = { ...parseFilters(params, viewer), q }
   const selected = params.get('c')
   const queue = buildQueue(model, state, lastSeenSeq, filters)
-  const next = nextAction(model, state, viewer)
-  const names: Record<string, string> = Object.fromEntries(identities.map((v) => [v.id, v.name]))
   const allRows = queue.groups.flatMap((g) => g.rows)
   const navRows = queue.groups.filter((g) => !closed.includes(g.key)).flatMap((g) => g.rows)
   const cursorRow = navRows.find((r) => r.key === cursor) ?? null
-  const pickedRows = allRows.filter((r) => picked.includes(r.key))
+  const shownPicks = visiblePicked(picked, navRows)
+  const pickedRows = navRows.filter((r) => shownPicks.includes(r.key))
   const level = acceptLevel(viewer)
 
   const select = (row: Row) => {
@@ -91,11 +128,15 @@ export function QueueScreen() {
   }
   const openFull = (row: Row) => router.push(refHref(row.ref))
   const togglePick = (row: Row) => setPicked((p) => (p.includes(row.key) ? p.filter((k) => k !== row.key) : [...p, row.key]))
+  const toggleAll = (rows: Row[]) => {
+    const keys = rows.map((r) => r.key)
+    setPicked((p) => (pickState(p, keys) === 'all' ? p.filter((k) => !keys.includes(k)) : [...p, ...keys.filter((k) => !p.includes(k))]))
+  }
+  const unpick = (rows: Row[]) => setPicked((p) => p.filter((k) => !rows.some((r) => r.key === k)))
   const toggleGroup = (k: GroupKey, open: boolean) => setClosed((c) => (open ? c.filter((x) => x !== k) : c.includes(k) ? c : [...c, k]))
-  const setLearnMode = (on: boolean) => {
-    setLearn(on)
-    setNextOpen(on)
-    writeLearn(on)
+  const toggleExplain = () => {
+    writeHidden(!hideExplain)
+    setHideExplain(!hideExplain)
   }
 
   function move(d: 1 | -1) {
@@ -117,16 +158,19 @@ export function QueueScreen() {
     else toast('Nothing to adjust on this row', { description: 'Only a return line or a household fact takes an adjustment.' })
   }
 
-  /** Posts what authorize() allows, in batches of 300 (the API limit); says what was skipped and why. */
-  async function postAllowed(inputs: ActInput[], verb: string, skippedElsewhere: string[] = []): Promise<boolean> {
+  /** Posts what authorize() allows, in batches of 300 (the API limit); says what was skipped and why. `note` is the
+   * caller's own skip clause (bulk accept's "skipped 2 not tied by a check", spec §2). Returns whether every batch landed
+   * and the targets recorded, so a bulk act unpicks only the rows it acted on. */
+  async function postAllowed(inputs: ActInput[], verb: string, skippedElsewhere: string[] = [], note = ''): Promise<{ ok: boolean; done: Set<string> }> {
     const checked = inputs.map((input) => ({ input, auth: ws.can(input) }))
     const allowed = checked.filter((c) => c.auth.ok).map((c) => c.input)
-    const reasons = [...checked.flatMap((c) => (c.auth.ok ? [] : [c.auth.reason])), ...skippedElsewhere]
+    const reasons = [...checked.flatMap((c) => (c.auth.ok ? [] : [plainMasked(c.auth.reason)])), ...skippedElsewhere]
+    const done = new Set<string>()
     if (!allowed.length) {
-      toast.error(`Nothing ${verb.toLowerCase()}`, { description: reasons[0] ?? 'Nothing selected can take this act.' })
-      return false
+      toast.error(`Nothing ${verb.toLowerCase()}`, { description: reasons[0] ?? (note ? `${verb} 0; ${note}` : 'Nothing selected can take this act.') })
+      return { ok: false, done }
     }
-    const skipped = reasons.length ? ` · ${reasons.length} skipped (${reasons[0]})` : ''
+    const skipped = `${note ? `; ${note}` : ''}${reasons.length ? ` · ${reasons.length} skipped (${reasons[0]})` : ''}`
     setBusy(true)
     let ok = true
     for (const part of chunk(allowed)) {
@@ -135,22 +179,27 @@ export function QueueScreen() {
         ok = false
         break
       }
+      for (const i of part) done.add(i.target)
     }
     setBusy(false)
-    return ok
+    return { ok, done }
   }
 
   async function disposePicked(disposition: DispositionT, reason: string): Promise<boolean> {
     const { inputs, skipped } = disposeInputs(model, pickedRows, disposition, reason)
-    const ok = await postAllowed(inputs, 'Disposed', skipped.map((r) => `${r.title.slice(0, 40)}… is cleared where it lives`))
-    if (ok) setPicked([])
+    const { ok, done } = await postAllowed(inputs, 'Disposed', skipped.map((r) => `${clipPlain(r.title)} is cleared where it lives`))
+    // disposeInputs targets a row's top finding, or the claim itself.
+    unpick(pickedRows.filter((r) => !skipped.includes(r) && done.has(r.findings[0] ?? r.claim ?? '')))
     return ok
   }
 
   async function acceptPicked() {
     if (!level) return
-    const claims = [...new Set(pickedRows.flatMap((r) => (r.claim ? [r.claim] : [])))]
-    if (await postAllowed(acceptInputs(model, state, claims, level), 'Accepted')) setPicked([])
+    const { claims, skipped } = splitTied(pickedRows, state.claims)
+    // Spec §2's wording: "Accepted N; skipped M not tied by a check".
+    const note = skipped.length ? `skipped ${skipped.length} not tied by a check` : ''
+    const { done } = await postAllowed(acceptInputs(model, state, claims, level), 'Accepted', [], note)
+    unpick(pickedRows.filter((r) => r.claim !== undefined && done.has(r.claim)))
   }
 
   async function acceptTied(t: TiedRow) {
@@ -165,20 +214,14 @@ export function QueueScreen() {
     }
     const input: ActInput = { type: 'revert', target, body: { reason: 'Undone from the queue (u)' } }
     const auth = ws.can(input)
-    if (!auth.ok) toast.error('Undo refused', { description: auth.reason })
+    if (!auth.ok) toast.error('Undo refused', { description: plainMasked(auth.reason) })
     else await ws.post([input], { undoLabel: `Undone: ${target}` })
-  }
-
-  function go(n: NextAction, auth: AuthResult) {
-    setParams({ c: n.ref }, true)
-    if (n.request && auth.ok) openAct(n.request)
-    else if (!auth.ok) toast('Opened the claim; the fix is not yours to record', { description: auth.reason })
   }
 
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return
     const el = e.target instanceof Element ? e.target : null
-    if (el?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return
+    if (isTypingTarget(el) || inOverlay(el)) return
     const row = cursorRow
     // A focused button or link activates itself on Enter; Shift+Enter opens the full Trace page.
     if (e.key === 'Enter' && !e.shiftKey && el?.closest('button, a, summary')) return
@@ -208,6 +251,7 @@ export function QueueScreen() {
   const handlers = { onSelect: select, onOpen: openFull, onPick: togglePick, onCursor: (r: Row) => setCursor(r.key) }
   const filtered = filters.area !== null || filters.mine || filters.q.trim() !== ''
   const nothing = !allRows.length && !queue.tied.length
+  const tiedCount = queue.tied.reduce((s, t) => s + t.claims.length, 0)
 
   return (
     <div className="grid lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)]">
@@ -233,40 +277,45 @@ export function QueueScreen() {
               onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
             />
           </div>
+          <Select items={AREA_OPTIONS} value={filters.area ?? ''} onValueChange={(v) => setParams({ area: v || null })}>
+            <SelectTrigger aria-label="Filter by area">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AREA_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span className="flex items-center gap-1.5 text-xs">
             <Switch aria-label="Assigned to me" checked={filters.mine} onCheckedChange={(on) => setParams({ mine: on ? '1' : '0' })} />
             Assigned to me
           </span>
-          <span className="flex items-center gap-1.5 text-xs">
-            <Switch aria-label="Learn mode" checked={learn} onCheckedChange={setLearnMode} />
-            Learn mode
-          </span>
-          {filters.area && (
-            <Button size="xs" variant="secondary" onClick={() => setParams({ area: null })} aria-label={`Clear the area filter (${AREA_LABEL[filters.area]})`}>
-              {AREA_LABEL[filters.area]}
-              <XIcon />
-            </Button>
-          )}
         </div>
-        <KeyHints />
 
-        <NextCard next={next} open={nextOpen} onOpenChange={setNextOpen} onGo={go} />
-        <AreaStrip areas={state.areas} active={filters.area} names={names} onPick={(a: AreaKey | null) => setParams({ area: a })} />
-        {learn && (
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Support letters: </span>
-            {SUPPORT_LEGEND}
-          </p>
+        {shownPicks.length > 0 && (
+          // Sticky only from lg: below it the header is taller and sticky too. The form is translucent, so the wrapper paints the page.
+          <div className="bg-background lg:sticky lg:top-14 lg:z-20">
+            <BulkBar
+              count={shownPicks.length}
+              busy={busy}
+              acceptReason={level ? null : NOT_REVIEWER}
+              onDispose={disposePicked}
+              onAccept={() => void acceptPicked()}
+              onClear={() => setPicked([])}
+            />
+          </div>
         )}
-        {picked.length > 0 && (
-          <BulkBar
-            count={pickedRows.length}
-            busy={busy}
-            acceptReason={level ? null : NOT_REVIEWER}
-            onDispose={disposePicked}
-            onAccept={() => void acceptPicked()}
-            onClear={() => setPicked([])}
-          />
+
+        {!nothing && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {!hideExplain && <p className="min-w-0 flex-1">Click a row to open it beside the list. Press ? for shortcuts.</p>}
+            <Button size="xs" variant="ghost" className="ml-auto" onClick={toggleExplain}>
+              {hideExplain ? 'Show explanations' : 'Hide explanations'}
+            </Button>
+          </div>
         )}
 
         {nothing && filtered ? (
@@ -285,58 +334,66 @@ export function QueueScreen() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border">
-            {queue.groups.map((g) => (
-              <GroupView
-                key={g.key}
-                group={g}
-                count={g.rows.length}
-                open={!closed.includes(g.key)}
-                learn={learn}
-                onToggle={(o) => toggleGroup(g.key, o)}
-                toolbar={g.key === 'new' && <MarkSeen seen={lastSeenSeq} head={state.head} onMark={ws.markSeen} />}
-              >
-                {g.rows.length ? (
-                  <ul>
-                    {g.rows.map((r) => (
-                      <RowView
-                        key={r.key}
-                        row={r}
-                        model={model}
-                        state={state}
-                        names={names}
-                        selected={selected === r.ref}
-                        cursor={cursor === r.key}
-                        picked={picked.includes(r.key)}
-                        on={handlers}
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="px-3 py-2 text-xs text-muted-foreground">Nothing here{filtered ? ' for these filters' : ''}.</p>
-                )}
-              </GroupView>
-            ))}
+            {queue.groups.map((g) => {
+              const open = !closed.includes(g.key)
+              const keys = g.rows.map((r) => r.key)
+              return (
+                <GroupView
+                  key={g.key}
+                  group={g}
+                  count={g.rows.length}
+                  countLabel={countLabel(g, g.rows.length)}
+                  open={open}
+                  explanation={hideExplain || !g.rows.length ? null : g.learn}
+                  selectAll={{ state: pickState(picked, keys), enabled: open && keys.length > 0, onToggle: () => toggleAll(g.rows) }}
+                  onToggle={(o) => toggleGroup(g.key, o)}
+                  toolbar={g.key === 'new' && <MarkSeen seen={lastSeenSeq} head={state.head} onMark={ws.markSeen} />}
+                >
+                  {g.rows.length ? (
+                    <ul>
+                      {g.rows.map((r) => (
+                        <RowView
+                          key={r.key}
+                          row={r}
+                          model={model}
+                          state={state}
+                          selected={selected === r.ref}
+                          cursor={cursor === r.key}
+                          picked={picked.includes(r.key)}
+                          on={handlers}
+                        />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">Nothing here{filtered ? ' for these filters' : ''}.</p>
+                  )}
+                </GroupView>
+              )
+            })}
             <GroupView
               group={TIED}
-              count={queue.tied.reduce((s, t) => s + t.claims.length, 0)}
+              count={tiedCount}
+              countLabel={countLabel(TIED, tiedCount)}
               open={!closed.includes('tied')}
-              learn={learn}
+              explanation={hideExplain || !queue.tied.length ? null : TIED.learn}
+              selectAll={null}
               onToggle={(o) => toggleGroup('tied', o)}
             >
               <ul>
                 {queue.tied.map((t) => (
-                  <li key={t.area} className="flex items-center gap-2 border-t px-3 py-1.5 text-sm first:border-t-0">
+                  <li key={t.area} className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-3 py-1.5 text-sm first:border-t-0">
                     <button
                       type="button"
                       onClick={() => setParams({ area: t.area })}
                       title="Filter the queue to this area"
-                      className="min-w-0 flex-1 truncate rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                      className="min-w-0 flex-auto truncate rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {t.label}: <span className="tabular-nums">{t.claims.length}</span> read ok, 0 findings
                     </button>
-                    <span title={level ? `Accept ${t.claims.length} tied claims as ${level}` : NOT_REVIEWER} className="inline-flex">
+                    {!level && <span className="text-xs text-muted-foreground">{NOT_REVIEWER}</span>}
+                    <span title={level ? `Accept ${t.claims.length} tied claims as ${level}` : undefined} className="inline-flex">
                       <Button size="xs" variant="outline" disabled={!level || busy} onClick={() => void acceptTied(t)}>
-                        Accept all
+                        {`Accept ${t.claims.length}`}
                       </Button>
                     </span>
                   </li>
@@ -375,29 +432,10 @@ export function QueueScreen() {
 function MarkSeen({ seen, head, onMark }: { seen: number; head: number; onMark: () => void }) {
   return (
     <div className="flex items-center gap-2 px-3 pt-1.5 text-xs text-muted-foreground">
-      <span>
-        Last looked at act #{seen}; the log is at #{head}.
-      </span>
+      <span>New since you last marked the log seen.</span>
       <Button size="xs" variant="outline" disabled={seen >= head} onClick={onMark}>
         Mark seen
       </Button>
-    </div>
-  )
-}
-
-const HINTS: [string, string][] = [
-  ['j k', 'move'], ['Enter', 'open'], ['Esc', 'close'], ['x', 'select'], ['a', 'adjust'], ['v', 'verify'], ['n', 'note'], ['u', 'undo'], ['/', 'search'],
-]
-
-function KeyHints() {
-  return (
-    <div role="group" className="hidden flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground md:flex" aria-label="Keyboard shortcuts">
-      {HINTS.map(([k, what]) => (
-        <span key={k} className="flex items-center gap-1">
-          <Kbd>{k}</Kbd>
-          {what}
-        </span>
-      ))}
     </div>
   )
 }

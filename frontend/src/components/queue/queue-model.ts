@@ -1,6 +1,6 @@
-// Pure half of the queue (spec §3.1): groups, rows, filters, the Next card and bulk act inputs.
+// Pure half of the queue (spec §3.1): groups, rows, filters, bulk act inputs, and the next action the Overview shows.
 // No React here, so vitest runs it in node against buildModel(packet) + project(...).
-import { type DispositionT, type LevelT, buildInput, fixToRequest, initialDraft, levelsFor, normalizeRequest, probeDraft } from '@/components/acts/draft'
+import { type DispositionT, type LevelT, fixToRequest, levelsFor } from '@/components/acts/draft'
 import { describeActs, undoTargets } from '@/components/workspace/log'
 import type { OpenActRequest } from '@/components/workspace/types'
 import type { Act, ActInput } from '@/lib/model/acts'
@@ -18,7 +18,7 @@ export interface GroupInfo {
   key: GroupKey
   n: number
   label: string
-  /** One sentence for learn mode. */
+  /** One sentence for the queue's explanations block. */
   learn: string
 }
 
@@ -29,10 +29,8 @@ export const GROUPS: GroupInfo[] = [
   { key: 'weak', n: 4, label: 'Weakly supported or unaccounted', learn: 'The number rests on a client answer alone, a carryover that does not tie, or a document that landed nowhere.' },
   { key: 'swings', n: 5, label: 'Swings', learn: 'Lines that moved more than 10% and 1,000 from 2024 while none of their inputs did: explain the root once and the totals above it follow.' },
   { key: 'decisions', n: 6, label: 'Decisions due', learn: 'Engine alternatives, diagnostics, prior-preparer items, outside filings and process questions that need a recorded decision with its authority.' },
-  { key: 'tied', n: 7, label: 'Tied by checks', learn: 'Every source read matches its printed page and no check found anything. A reviewer may accept them in bulk; their letters stay outlined, never filled.' },
+  { key: 'tied', n: 7, label: 'Tied by checks', learn: 'A check has already tied these out against their sources; accept them in bulk once you agree.' },
 ]
-
-export const SUPPORT_LEGEND = 'D source document · R recalculated · C client · P prior year · T third party. Filled: a person verified it. Outlined: a check earned it. Ringed: bulk-accepted.'
 
 export type RowKind = 'finding' | 'note' | 'adjust' | 'step' | 'agency' | 'act' | 'claim' | 'signoff'
 
@@ -51,6 +49,9 @@ export interface Row {
   /** Claim whose state (status, value, support, flags) the row shows, when the ref is one. */
   claim?: string
   title: string
+  /** The full text behind the title (a note, a reason, an agency message), never sliced: the row's second line when it
+   * has no claim label of its own (spec §4.3). */
+  reason?: string
   /** Finding ids on this row, top one first. */
   findings: string[]
   severity: Severity | null
@@ -212,7 +213,7 @@ function blockRows(model: Model, state: State, findings: Finding[], downstream: 
     const claim = claimOf(model, n.target)
     rows.push({
       key: `blocks:note:${n.seq}`, group: 'blocks', kind: 'note', ref: claim ?? `act:${n.seq}`, claim,
-      title: `Blocking review note by ${name(n.actor)}: ${n.text}`, findings: [], severity: 'high',
+      title: `Blocking review note by ${name(n.actor)}: ${n.text}`, reason: n.text, findings: [], severity: 'high',
       stake: claim ? state.claims[claim].stake : ZERO, area: areaOfRef(model, n.target), at: n.season_at, downstream: 0,
     })
   }
@@ -222,7 +223,7 @@ function blockRows(model: Model, state: State, findings: Finding[], downstream: 
     rows.push({
       key: `blocks:adjust:${v.seq}`, group: 'blocks', kind: 'adjust', ref: v.target, claim,
       title: `${name(v.actor)} adjusted ${v.target} (Fed ${signed(v.effect.fed)}, CA ${signed(v.effect.ca)}): over 1,000 needs a partner sign-off`,
-      findings: [], severity: 'high', stake: { fed: Math.abs(v.effect.fed), ca: Math.abs(v.effect.ca) },
+      reason: v.reason, findings: [], severity: 'high', stake: { fed: Math.abs(v.effect.fed), ca: Math.abs(v.effect.ca) },
       area: areaOfRef(model, v.target), at: v.recorded_at, downstream: 0,
     })
   }
@@ -233,6 +234,7 @@ function blockRows(model: Model, state: State, findings: Finding[], downstream: 
       rows.push({
         key: `blocks:agency:${r.seq}`, group: 'blocks', kind: 'agency', ref: `act:${r.seq}`,
         title: `${r.jurisdiction === 'federal' ? 'IRS' : 'FTB'} rejected the filing: ${r.errors.map((e) => `${e.code} ${e.message}`).join('; ') || 'no reason given'}`,
+        reason: r.errors.map((e) => e.message).join('; ') || undefined,
         findings: [], severity: 'high', stake: ZERO, area: 'payments_and_filing', downstream: 0,
       })
     }
@@ -242,11 +244,18 @@ function blockRows(model: Model, state: State, findings: Finding[], downstream: 
     const ref = `step:${s.n}`
     rows.push({
       key: `blocks:${ref}`, group: 'blocks', kind: 'step', ref, claim: model.claims[ref] ? ref : undefined,
-      title: `Step ${s.n} · ${s.label}: ${s.reasons[0]?.text ?? 'not met'}`, findings: [], severity: 'warning', stake: ZERO,
+      title: `Step ${s.n} · ${s.label}: ${s.reasons[0]?.text ?? 'not met'}`, reason: s.reasons[0]?.text, findings: [], severity: 'warning', stake: ZERO,
       area: model.claims[ref]?.area, downstream: 0,
     })
   }
   return rows
+}
+
+/** An act's own words: its reason (adjust, dispose, revert, amend_open) or its text (note, reply, resolve, attach). */
+function ownText(a: Act): string | undefined {
+  const b = a.body as { reason?: unknown; text?: unknown }
+  if (typeof b.reason === 'string' && b.reason) return b.reason
+  return typeof b.text === 'string' && b.text ? b.text : undefined
 }
 
 function newRows(model: Model, state: State, open: Finding[], downstream: Record<string, number>, lastSeenSeq: number, name: (id: string) => string): Row[] {
@@ -267,7 +276,9 @@ function newRows(model: Model, state: State, open: Finding[], downstream: Record
     const what = a.actor === 'system' ? `${a.type.replaceAll('_', ' ')} ${a.target}` : describeActs(acts)
     rows.push({
       key: `new:act:${a.seq}`, group: 'new', kind: 'act', ref: acts.length === 1 && claim ? claim : `act:${a.seq}`,
-      claim: acts.length === 1 ? claim : undefined, title: `${name(a.actor)}: ${what}`, findings: [], severity: null,
+      claim: acts.length === 1 ? claim : undefined, title: `${name(a.actor)}: ${what}`,
+      // A batch row stands for several acts, so no one act's words speak for it.
+      reason: acts.length === 1 ? ownText(a) : undefined, findings: [], severity: null,
       stake: effect ? { fed: Math.abs(effect.fed), ca: Math.abs(effect.ca) } : ZERO, area: areaOfRef(model, a.target), at: a.season_at, downstream: 0,
     })
   }
@@ -291,6 +302,7 @@ function newRows(model: Model, state: State, open: Finding[], downstream: Record
     rows.push({
       key: `new:signoff:${s.seq}`, group: 'new', kind: 'signoff', ref: s.target.startsWith('area:') ? s.target : `act:${s.seq}`,
       title: `${name(s.actor)}'s ${s.level} sign-off on ${targetLabel(s.target)} reopened: ${s.changed.length} changed`,
+      reason: `Changed after sign-off: ${s.changed.length} ${s.changed.length === 1 ? 'claim' : 'claims'}`,
       findings: [], severity: 'warning', stake: ZERO, area: areaOfRef(model, s.target), at: s.recorded_at, downstream: 0,
     })
   }
@@ -366,7 +378,7 @@ export function buildQueue(model: Model, state: State, lastSeenSeq: number, filt
   return { groups, tied }
 }
 
-// ── Next card ─────────────────────────────────────────────────────────────────────────────
+// ── Next action (the Overview's next steps) ───────────────────────────────────────────────
 
 export interface NextAction {
   kind: 'note' | 'question' | 'signoff' | 'finding' | 'evidence' | 'swing' | 'step'
@@ -399,12 +411,6 @@ function doneWhen(f: Finding): string {
 }
 
 const moneyThenSeverity = (fs: Finding[]) => [...fs].sort(findingOrder)[0]
-
-/** The act Go opens, judged as ActButton judges it: on the probed draft, so a field the form still collects never refuses. */
-export function goInput(model: Model, state: State, request: OpenActRequest): ActInput {
-  const req = normalizeRequest(request)
-  return buildInput(req, probeDraft(req, initialDraft(req, model, state), state), state)
-}
 
 /** The single most valuable next action for this viewer (spec §3.1 Next card). */
 export function nextAction(model: Model, state: State, viewer: Viewer): NextAction | null {

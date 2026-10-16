@@ -8,7 +8,7 @@ import { MaskedText } from '@/components/atoms'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/components/workspace/context' // not the index: it re-exports the provider
 import type { OpenActRequest } from '@/components/workspace/types'
-import { displayMasked, splitMasked } from '@/lib/model/mask-token'
+import { plainMasked } from '@/lib/model/mask-token'
 
 /** True while the overview renders a replayed state (set by the overview screen). */
 export const ReplayContext = createContext<boolean>(false)
@@ -51,7 +51,7 @@ export function OvAct({ request, children, whenRefused, size, variant }: {
 /** Masked-safe text. Live: tokens show with Reveal (logged against `context`). Replaying: the masked form only. */
 export function OvMasked({ text, context }: { text: string; context: string }) {
   if (use(ReplayContext)) {
-    return <span>{splitMasked(text).map((p) => (typeof p === 'string' ? p : displayMasked(p))).join('')}</span>
+    return <span>{plainMasked(text)}</span>
   }
   return <MaskedText text={text} context={context} />
 }

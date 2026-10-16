@@ -4,6 +4,7 @@
 import { type ReactNode, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { refHref } from '@/components/atoms/format'
+import { inOverlay, isTypingTarget } from '@/components/shell/keys'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useWorkspace } from '@/components/workspace/context'
 import type { Claim } from '@/lib/model/claims'
@@ -100,7 +101,8 @@ function TraceTabs(panels: Record<Tab, ReactNode>) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
-      if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"], [role="listbox"]')) return
+      const el = e.target instanceof Element ? e.target : null
+      if (isTypingTarget(el) || inOverlay(el)) return
       const next = TABS[Number(e.key) - 1]
       if (next) setTab(next.value)
     }
@@ -109,7 +111,7 @@ function TraceTabs(panels: Record<Tab, ReactNode>) {
   }, [])
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-      <TabsList>
+      <TabsList data-tour="claim-tabs">
         {TABS.map((t, i) => (
           <TabsTrigger key={t.value} value={t.value} className="px-3">
             {t.label} <kbd className="ml-1 font-mono text-[10px] text-muted-foreground">{i + 1}</kbd>

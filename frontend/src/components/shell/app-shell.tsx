@@ -81,7 +81,7 @@ function TopBar() {
       <RailToggle placement="topbar" />
       <div className="flex min-w-0 flex-1 items-center gap-3 xl:flex-initial rail-wide:hidden">
         <Link
-          href="/"
+          href="/about"
           className="flex min-w-0 items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-foreground"
           title={model.packet.packet.client_id}
         >
@@ -125,12 +125,12 @@ function ClientBanner() {
   )
 }
 
-// Below lg only: from lg the rail's foot carries the gate (rail.tsx). Not on the overview (/): its blockers section lists
+// Below lg only: from lg the rail's foot carries the gate (rail.tsx). Not on the overview (/overview): its blockers section lists
 // the same reasons.
 function GateBar() {
   const pathname = usePathname()
   const { state, packetSha, engagement } = useWorkspace()
-  if (pathname === '/') return null
+  if (pathname === '/overview') return null
   const gate = state.gates.submit
   const shown = gate.reasons.slice(0, GATE_REASONS_SHOWN)
   const more = gate.reasons.length - shown.length

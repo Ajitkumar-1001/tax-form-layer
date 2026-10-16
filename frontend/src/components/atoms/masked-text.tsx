@@ -36,7 +36,7 @@ function MaskedToken({ token, context }: { token: MaskToken; context: string }) 
   const value = shown && 'value' in shown ? shown.value : null
   return (
     <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
-      <span className="font-mono tabular-nums" title={value ? 'Revealed; this view was logged' : `Masked ${token.kind.replace('_', ' ')}`}>
+      <span data-tour="masked-value" className="font-mono tabular-nums" title={value ? 'Revealed; this view was logged' : `Masked ${token.kind.replace('_', ' ')}`}>
         {value ?? displayMasked(token)}
       </span>
       {value ? (

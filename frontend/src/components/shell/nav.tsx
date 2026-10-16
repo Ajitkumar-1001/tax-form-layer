@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 
 // The icons show in the rail (rail.tsx, alone from lg, beside the label from xl) and in the command palette ("Go to").
 export const NAV = [
-  { href: '/', label: 'Overview', icon: LayoutDashboardIcon },
+  { href: '/overview', label: 'Overview', icon: LayoutDashboardIcon },
   { href: '/queue', label: 'Queue', icon: ListTodoIcon },
   { href: '/documents', label: 'Documents', icon: FileTextIcon },
   { href: '/records', label: 'Records', icon: TableIcon },
@@ -32,9 +32,9 @@ function centreIn(tab: HTMLElement) {
   dock.scrollLeft = left - (dock.clientWidth - tab.offsetWidth) / 2
 }
 
-/** Whether `href` is the screen at `pathname` (a screen owns its sub-paths; the overview is "/" alone). */
+/** Whether `href` is the screen at `pathname` (a screen owns its sub-paths). */
 export function isCurrent(href: string, pathname: string) {
-  return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`)
+  return pathname === href || pathname.startsWith(`${href}/`)
 }
 
 /** A ref callback for the current item. Its `[data-pill]` (origin top left) is in the server render too, so the first

@@ -50,6 +50,11 @@ export function displayMasked(t: Pick<MaskToken, 'kind' | 'last4'>): string {
   }
 }
 
+/** Text with tokens shown as •••-••-3309, for plain-string sinks such as title attributes, toasts and labels. */
+export function plainMasked(text: string): string {
+  return splitMasked(text).map((p) => (typeof p === 'string' ? p : displayMasked(p))).join('')
+}
+
 /** Equality of two possibly-masked values (token tags or plain strings). */
 export function sameValue(a: unknown, b: unknown): boolean {
   const ta = typeof a === 'string' ? parseToken(a) : null

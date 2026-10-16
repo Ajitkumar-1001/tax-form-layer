@@ -46,6 +46,9 @@ const MEANING: Record<SupportLetter, string> = { D: 'source document', R: 'recal
 const RANK: Record<Support['how'], number> = { filled: 3, ringed: 2, outlined: 1 }
 const HOW: Record<Support['how'], string> = { filled: 'verified by', outlined: 'earned by a check', ringed: 'bulk-accepted by' }
 
+/** What the letters and their marks mean, in one line for under them. */
+export const SUPPORT_LEGEND = 'D source document · R recalculated · C client · P prior year · T third party. Filled: a person verified it. Outlined: a check earned it. Ringed: bulk-accepted.'
+
 /** D R C P T: filled = a person verified, outlined = a check earned it, ringed = bulk-accepted, faint = none. */
 export function SupportLetters({ support }: { support: Support[] }) {
   return (

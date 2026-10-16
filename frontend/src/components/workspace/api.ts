@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { Act, ActType, PostActs } from '@/lib/model/acts'
 import type { Packet } from '@/lib/model/packet-types'
 import type { Viewer } from '@/lib/model/state'
+import { TOUR_READ_ONLY_REASON, tourBlocksWrite } from '@/components/tour/guard'
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
@@ -108,11 +109,18 @@ export async function getActs(engagement: string, after: number): Promise<Act[]>
   return check('/api/acts', ActsZ, await call(url)).acts
 }
 
+// The tour is read-only on the shared engagement (components/tour/guard.ts): its writes are refused here, before any request.
+function refuseDuringTour(engagement: string): void {
+  if (tourBlocksWrite(engagement)) throw new ApiError(403, TOUR_READ_ONLY_REASON)
+}
+
 export async function postActs(body: PostActs): Promise<Act[]> {
+  refuseDuringTour(body.engagement)
   return check('/api/acts', ActsZ, await call('/api/acts', { method: 'POST', body })).acts
 }
 
 export async function postReveal(engagement: string, token: string, context: string): Promise<string> {
+  refuseDuringTour(engagement)
   return check('/api/reveal', RevealZ, await call('/api/reveal', { method: 'POST', body: { engagement, token, context } })).value
 }
 

@@ -63,6 +63,7 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --color-info-line: var(--info-line);
+  --animate-marquee: marquee var(--duration) infinite linear;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -177,6 +178,16 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ui/marquee.tsx: one copy slides left by its own width plus the gap, then the loop restarts unseen. */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-100% - var(--gap)));
   }
 }
 

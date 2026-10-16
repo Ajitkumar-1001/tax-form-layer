@@ -10,6 +10,10 @@ import { OvAct } from './replay-safe'
 const TH = 'px-2 py-1.5 font-medium'
 const TD = 'px-2 py-2 align-top'
 const LINK = 'underline-offset-2 hover:underline'
+// A link reads as one at rest (spec §5.1: every number is a link): pen blue, or, where a colour already means something
+// (success: signed; warning: over budget), that colour with a resting underline.
+const PLAIN = 'text-primary'
+const TONED = 'underline decoration-current/40'
 
 const SIGNOFFS: Record<TeamRow['signoffs'], string> = {
   changed: 'Changed after sign-off',
@@ -48,7 +52,7 @@ export function TeamSection({ team }: { team: TeamRow[] }) {
             {team.map((r) => (
               <tr key={r.key} className="border-b last:border-0">
                 <th scope="row" className={cn(TD, 'text-left font-medium')}>
-                  <Link href={r.href} className={cn(LINK, 'text-primary')}>
+                  <Link href={r.href} className={cn(LINK, PLAIN)}>
                     {r.label}
                   </Link>
                 </th>
@@ -63,12 +67,12 @@ export function TeamSection({ team }: { team: TeamRow[] }) {
                 </td>
                 <td className={cn(TD, 'text-right tabular-nums')}>{r.open}</td>
                 <td className={TD}>
-                  <Link href="/filing#matrix" className={cn(LINK, (r.signoffs === 'reviewed' || r.signoffs === 'partner') && 'text-success')}>
+                  <Link href="/filing#matrix" className={cn(LINK, r.signoffs === 'reviewed' || r.signoffs === 'partner' ? cn('text-success', TONED) : PLAIN)}>
                     {SIGNOFFS[r.signoffs]}
                   </Link>
                 </td>
                 <td className={cn(TD, 'text-right whitespace-nowrap')}>
-                  <Link href="/firm#time" className={cn(LINK, 'tabular-nums', r.over && 'font-medium text-warning')}>
+                  <Link href="/firm#time" className={cn(LINK, 'tabular-nums', r.over ? cn('font-medium text-warning', TONED) : PLAIN)}>
                     {hoursText(r)}
                   </Link>
                 </td>

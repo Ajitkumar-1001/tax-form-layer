@@ -10,11 +10,12 @@
 //   <MaskedText text={value} context={ref} />      masked tokens as •••-••-3309 + Reveal (logged; refusals shown inline)
 //   <Ago iso={at} now?={state.clock} />            relative time; pass `now` to measure from the season clock
 //
-// Helpers: refHref(ref), refLabel(model, ref), formatMoney(v, signed?), formatClock(iso), relativeTime(iso, nowMs).
+// Helpers: refHref(ref), refLabel(model, ref), formatMoney(v, signed?), formatClock(iso), relativeTime(iso, nowMs),
+// initials(name). SUPPORT_LEGEND is the one-line key to the support letters.
 // RefLink, MaskedText and Ago are client components; RefLink and MaskedText degrade gracefully outside the provider.
 export { Ago } from './ago'
-export { formatClock, formatMoney, refHref, refLabel, relativeTime } from './format'
+export { formatClock, formatMoney, initials, refHref, refLabel, relativeTime } from './format'
 export { MaskedText } from './masked-text'
 export { Money, Stake } from './money'
 export { RefLink } from './ref-link'
-export { FlagChips, StatusPill, SupportLetters } from './status'
+export { FlagChips, StatusPill, SUPPORT_LEGEND, SupportLetters } from './status'
