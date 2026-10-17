@@ -106,7 +106,7 @@ export function ActView({ refId, seq, compact }: { refId: string; seq: number; c
       <TraceTitle refId={refId} kind={`Act · ${act.type.replaceAll('_', ' ')}`} label={<>#{seq} by {who(act.actor)} on <RefLink to={act.target} /></>} />
       <ul><ActRow {...row} /></ul>
       {note && (
-        <Section title={note.open ? 'Open note' : 'Resolved note'}>
+        <Section title={note.open ? 'Open note' : 'Resolved note'} focusReturn>
           <p className="text-sm"><MaskedText text={note.text} context={refId} /></p>
           {note.replies.map((r) => (
             <div key={r.seq} className="rounded-md bg-muted/60 p-2 text-sm">

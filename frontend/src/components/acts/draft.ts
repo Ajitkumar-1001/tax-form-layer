@@ -37,6 +37,7 @@ export interface FileT {
 export interface Draft {
   method: MethodT
   level: LevelT
+  seen: Val // verify's seen_value, captured when the form opens
   field: AdjustFieldT
   to: string // adjust: new value as typed
   reason: string
@@ -255,6 +256,7 @@ export function initialDraft(req: OpenActRequest, model: Model, state: State): D
   return {
     method: pick(VerifyMethod, p.method, suggestMethod(evidence)),
     level: pick(Level, p.level, levelsFor(role)[0] ?? 'preparer'),
+    seen: state.claims[t]?.effective ?? null,
     field: pick(AdjustFieldZ, p.field, 'value'),
     to: req.type === 'adjust' && p.to !== undefined && p.to !== null ? String(p.to) : '',
     reason: str(p.reason),
@@ -300,7 +302,7 @@ export function buildInput(req: OpenActRequest, d: Draft, state: State): ActInpu
 
   switch (req.type) {
     case 'verify':
-      return { type: 'verify', target: t, body: { method: d.method, level: d.level, seen_value: current, evidence, findings } }
+      return { type: 'verify', target: t, body: { method: d.method, level: d.level, seen_value: d.seen, evidence, findings } }
     case 'adjust':
       return {
         type: 'adjust', target: t,

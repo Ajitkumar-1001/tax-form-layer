@@ -85,7 +85,7 @@ export function TourHost() {
   }, [])
 
   // Escape for a visitor who clicked into the page (inside the card the card handles it). Only when nothing but the page itself
-  // has focus (clicking text focuses <main>, which has tabIndex -1) and nothing else took the key: a menu, dialog or field
+  // has focus (clicking text focuses <main> or a [data-focus-return] container, both tabIndex -1) and nothing else took the key: a menu, dialog or field
   // keeps its own Escape.
   const showing = visible && phase.kind !== 'off'
   useEffect(() => {
@@ -93,7 +93,7 @@ export function TourHost() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return
       const active = document.activeElement
-      if (active && active !== document.body && active.id !== 'main') return
+      if (active && active !== document.body && active.id !== 'main' && !active.matches('[data-focus-return]')) return
       dismiss()
     }
     addEventListener('keydown', onKey)

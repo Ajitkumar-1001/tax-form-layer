@@ -47,12 +47,17 @@ function ActWhat({ act }: { act: Act }) {
   }
 }
 
+/** A focus return (`data-focus-return`, act-host.tsx returnFocusTo): Revert goes once the act is reverted, and the row stays. */
 export function ActRow({ act, reverted, revertable }: { act: Act; reverted: boolean; revertable: boolean }) {
   const who = useWho()
   const b = act.body as { reason?: string }
   const effect = act.type === 'adjust' ? (act.derived as Partial<AdjustDerived>).effect : undefined
   return (
-    <li className={cn('flex flex-col gap-0.5 border-t py-2 text-sm first:border-t-0', reverted && 'text-muted-foreground')}>
+    <li
+      data-focus-return
+      tabIndex={-1}
+      className={cn('flex flex-col gap-0.5 border-t py-2 text-sm outline-none first:border-t-0 focus-visible:ring-2 focus-visible:ring-ring', reverted && 'text-muted-foreground')}
+    >
       <div className="flex flex-wrap items-baseline gap-x-2">
         <RefLink to={`act:${act.seq}`} className="font-mono text-xs">#{act.seq}</RefLink>
         <span className={cn('font-medium', reverted && 'line-through')}>{act.type.replaceAll('_', ' ')}</span>

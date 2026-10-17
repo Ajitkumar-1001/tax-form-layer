@@ -16,10 +16,20 @@ const ACT_LABEL: Partial<Record<NextKind, string>> = {
   reassign: 'Reassign',
 }
 
+/**
+ * The section is a focus return (`data-focus-return`, act-host.tsx returnFocusTo): an act on a row can unmount its opener,
+ * and the section outlives every row (the <ul> goes with the last one). The rows keep their index keys, so a same-kind
+ * sibling may inherit the removed row's button and take focus instead; that is accepted, body is not.
+ */
 export function NextStepsSection({ next }: { next: NextSteps }) {
   const { top, items, total } = next
   return (
-    <section aria-labelledby="ov-next" className="flex flex-col gap-3">
+    <section
+      aria-labelledby="ov-next"
+      data-focus-return
+      tabIndex={-1}
+      className="flex flex-col gap-3 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 id="ov-next" className="text-base font-semibold">
           Your next steps

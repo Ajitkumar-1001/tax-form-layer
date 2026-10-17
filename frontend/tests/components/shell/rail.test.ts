@@ -57,4 +57,10 @@ describe('AppShell', () => {
   it('has no toggle in the server render', () => {
     expect(html).not.toContain('aria-controls="rail"')
   })
+
+  it("lands the skip link's target below the sticky header", () => {
+    const classes = /<main id="main"[^>]*class="([^"]*)"/.exec(html)?.[1]?.split(' ') ?? []
+    expect(classes).toContain('scroll-mt-44')
+    expect(classes).toContain('lg:scroll-mt-20')
+  })
 })

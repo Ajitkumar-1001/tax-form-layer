@@ -114,4 +114,12 @@ describe('AppShell on /overview and /queue', () => {
     expect(shellAt('/overview')).not.toContain(GATE_BAR)
     expect(shellAt('/queue')).toContain(GATE_BAR)
   })
+
+  // The palette's title and description live inside its popup, so a closed palette leaves no heading in the top bar ahead of the page's h1.
+  it("keeps the closed palette's title out of the page", () => {
+    const html = shellAt('/overview')
+    // The palette is still mounted: its trigger renders, so the absence below cannot pass because the palette vanished.
+    expect(html).toContain('aria-label="Search refs and labels (⌘K)"')
+    expect(html).not.toContain('Search the workpaper')
+  })
 })

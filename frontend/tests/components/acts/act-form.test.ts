@@ -67,6 +67,15 @@ describe('act forms render', () => {
     expect(html).toContain('type="submit"')
   })
 
+  // A server render only reaches the idle state, so this is a proxy: the busy and refused paths are the browser check's.
+  it('keeps the submit focusable while it saves (aria-disabled, never disabled="")', () => {
+    const html = render({ type: 'adjust', target: 'F8949.B.N1', prefill: { field: 'basis', to: 19100 } })
+    const tag = html.match(/<button type="submit"[^>]*>/)?.[0] ?? ''
+    expect(tag).toContain('aria-disabled="false"')
+    expect(tag).toContain('data-disabled:opacity-50')
+    expect(tag).not.toContain(' disabled=""')
+  })
+
   it('a refusal replaces the submit button with the reason', () => {
     const reason = 'You prepared Sch3.10 (timeline:extension-2026-04-14). Route to another reviewer or the partner.'
     const html = render({ type: 'signoff', target: 'payments_and_filing' }, workspace('st-02', () => ({ ok: false, reason })))

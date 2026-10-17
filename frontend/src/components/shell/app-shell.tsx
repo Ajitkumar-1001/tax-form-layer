@@ -60,7 +60,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Suspense>
           <ClientBanner />
         </Suspense>
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 scroll-mt-44 outline-none lg:scroll-mt-20">
           <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
         </main>
         <Suspense fallback={<div className="sticky bottom-0 h-7 border-t bg-muted/40 lg:hidden" />}>

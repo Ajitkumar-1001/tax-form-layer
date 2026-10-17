@@ -9,9 +9,17 @@ import type { Val } from '@/lib/model/claims'
 import { cn } from '@/lib/utils'
 import { resolveRef } from './resolve'
 
-export function Section({ title, children, className, aside }: { title: ReactNode; children: ReactNode; className?: string; aside?: ReactNode }) {
+/**
+ * `focusReturn` makes the section a focus return (`data-focus-return`, act-host.tsx returnFocusTo) for a section whose act
+ * buttons go when the act lands, and the section stays. Opt-in: every other section renders as before.
+ */
+export function Section({ title, children, className, aside, focusReturn }: { title: ReactNode; children: ReactNode; className?: string; aside?: ReactNode; focusReturn?: boolean }) {
   return (
-    <section className={cn('flex min-w-0 flex-col gap-2', className)}>
+    <section
+      data-focus-return={focusReturn ? true : undefined}
+      tabIndex={focusReturn ? -1 : undefined}
+      className={cn('flex min-w-0 flex-col gap-2', focusReturn && 'rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring', className)}
+    >
       <div className="flex items-baseline gap-2">
         <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h2>
         {aside && <div className="ml-auto text-xs text-muted-foreground">{aside}</div>}

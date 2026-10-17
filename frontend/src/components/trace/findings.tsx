@@ -19,13 +19,21 @@ const SIGNAL: Record<Signal, { label: string; title: string }> = {
   prompt: { label: 'prompt', title: 'A question the file raises; a person must answer it' },
 }
 
+/**
+ * A focus return (`data-focus-return`, act-host.tsx returnFocusTo): the fix button gives way to "Resolved by" once the act
+ * lands, and the card outlives it. The queue drawer renders it too, so focus stays inside the drawer.
+ */
 export function FindingCard({ finding: f, showClaims = false }: { finding: Finding; showClaims?: boolean }) {
   const { state } = useWorkspace()
   const who = useWho()
   const fs = state.findings[f.id]
   const open = fs?.status !== 'resolved'
   return (
-    <article className={cn('flex flex-col gap-1.5 rounded-md border border-l-4 p-3 text-sm', SEVERITY[f.severity], !open && 'opacity-70')}>
+    <article
+      data-focus-return
+      tabIndex={-1}
+      className={cn('flex flex-col gap-1.5 rounded-md border border-l-4 p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring', SEVERITY[f.severity], !open && 'opacity-70')}
+    >
       <header className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <h3 className="min-w-0 flex-1 font-medium">{f.title}</h3>
         <span className="text-xs text-muted-foreground" title={SIGNAL[f.signal].title}>{f.severity} · {SIGNAL[f.signal].label} · {f.check}</span>

@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation'
 import { CompassIcon, SearchIcon, XIcon } from 'lucide-react'
 import { refHref } from '@/components/atoms/format'
 import { Button } from '@/components/ui/button'
-import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { DialogClose } from '@/components/ui/dialog'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import { openTour } from '@/components/tour/store'
 import { TOUR_ENABLED } from '@/components/tour/steps'
@@ -56,68 +56,76 @@ export function CommandPalette() {
         {/* The hint shows from xl, the label from 2xl; below xl the button is the icon alone. Both keep the title whole. */}
         <Kbd className="hidden bg-background text-foreground/70 ring-1 ring-inset ring-foreground/10 xl:inline-flex">⌘K</Kbd>
       </Button>
-      {/* Centred on the screen: top-1/2 -translate-y-1/2 replaces the primitive's upper-third anchor (ui/command.tsx). A centred box
-          re-centres whenever its height changes, so the list below is a fixed height, not a maximum: the input stays put as hits come and go. */}
-      <CommandDialog open={open} onOpenChange={setOpen} title="Search the workpaper" description="Find a line, document, household fact or client answer by ref or label" className="top-1/2 -translate-y-1/2 sm:max-w-2xl">
-        {/* The field stops short of the top-right corner (pr-11) for the close button below. That button sits outside <Command> on purpose:
-            Command's root handler swallows Enter (preventDefault, then it picks the highlighted hit), so a button inside it could not be
-            pressed with Enter. */}
-        <Command shouldFilter={false} className="**:data-[slot=command-input-wrapper]:pr-11">
-          <CommandInput value={query} onValueChange={setQuery} placeholder="Ref or label: F8949.B, D28, 1099-B" />
-          <CommandList className="h-96 max-h-[60svh]">
-            <CommandEmpty>Nothing matches “{query}”.</CommandEmpty>
-            {pages.length > 0 && (
-              <CommandGroup heading="Go to">
-                {pages.map((n) => (
-                  <CommandItem key={n.href} value={`page:${n.href}`} onSelect={() => go(n.href)}>
-                    <n.icon /> {n.label}
+      {/* Built from the ui/dialog parts, not CommandDialog: that wraps its sr-only title in a sibling of the popup, so a closed palette left an
+          h2 in the top bar ahead of every page's h1. Here the title and description sit inside the popup and exist only while it is open.
+          DialogContent centres the box (top-1/2 -translate-y-1/2), and a centred box re-centres whenever its height changes, so the list
+          below is a fixed height, not a maximum: the input stays put as hits come and go. */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent showCloseButton={false} className="overflow-hidden rounded-xl! p-0 sm:max-w-2xl">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Search the workpaper</DialogTitle>
+            <DialogDescription>Find a line, document, household fact or client answer by ref or label</DialogDescription>
+          </DialogHeader>
+          {/* The field stops short of the top-right corner (pr-11) for the close button below. That button sits outside <Command> on purpose:
+              Command's root handler swallows Enter (preventDefault, then it picks the highlighted hit), so a button inside it could not be
+              pressed with Enter. */}
+          <Command label="Search the workpaper" shouldFilter={false} className="**:data-[slot=command-input-wrapper]:pr-11">
+            <CommandInput value={query} onValueChange={setQuery} placeholder="Ref or label: F8949.B, D28, 1099-B" />
+            <CommandList className="h-96 max-h-[60svh]">
+              <CommandEmpty>Nothing matches “{query}”.</CommandEmpty>
+              {pages.length > 0 && (
+                <CommandGroup heading="Go to">
+                  {pages.map((n) => (
+                    <CommandItem key={n.href} value={`page:${n.href}`} onSelect={() => go(n.href)}>
+                      <n.icon /> {n.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {wantsTour && (
+                <CommandGroup heading="Help">
+                  <CommandItem
+                    value="help:tour"
+                    onSelect={() => {
+                      setOpen(false)
+                      setQuery('')
+                      openTour()
+                    }}
+                  >
+                    <CompassIcon /> Take the tour
                   </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-            {wantsTour && (
-              <CommandGroup heading="Help">
-                <CommandItem
-                  value="help:tour"
-                  onSelect={() => {
-                    setOpen(false)
-                    setQuery('')
-                    openTour()
-                  }}
-                >
-                  <CompassIcon /> Take the tour
-                </CommandItem>
-              </CommandGroup>
-            )}
-            {hits.length > 0 && (
-              <CommandGroup heading={heading}>
-                {hits.map((c) => (
-                  <CommandItem key={c.id} value={c.id} onSelect={() => go(refHref(c.id))}>
-                    <span className="w-40 shrink-0 truncate font-mono text-xs">{c.id}</span>
-                    <span className="min-w-0 flex-1 truncate">{c.label}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">{KIND_LABEL[c.kind]}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
-        {/* 32 px, as the shell's other icon buttons. On coarse pointers the ::after widens the hit area to 44 px without moving the visible
-            button, so it keeps its 8 px inset and its focus ring is never clipped by the dialog's edge. */}
-        <DialogClose
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2 cursor-pointer transition-colors duration-200 hover:bg-foreground/[0.08] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-foreground motion-reduce:transition-none pointer-coarse:after:absolute pointer-coarse:after:-inset-[7px] pointer-coarse:after:content-['']"
-              aria-label="Close search"
-              title="Close (Esc)"
-            />
-          }
-        >
-          <XIcon />
-        </DialogClose>
-      </CommandDialog>
+                </CommandGroup>
+              )}
+              {hits.length > 0 && (
+                <CommandGroup heading={heading}>
+                  {hits.map((c) => (
+                    <CommandItem key={c.id} value={c.id} onSelect={() => go(refHref(c.id))}>
+                      <span className="w-40 shrink-0 truncate font-mono text-xs">{c.id}</span>
+                      <span className="min-w-0 flex-1 truncate">{c.label}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{KIND_LABEL[c.kind]}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+          {/* 32 px, as the shell's other icon buttons. On coarse pointers the ::after widens the hit area to 44 px without moving the visible
+              button, so it keeps its 8 px inset and its focus ring is never clipped by the dialog's edge. */}
+          <DialogClose
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 cursor-pointer transition-colors duration-200 hover:bg-foreground/[0.08] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-foreground motion-reduce:transition-none pointer-coarse:after:absolute pointer-coarse:after:-inset-[7px] pointer-coarse:after:content-['']"
+                aria-label="Close search"
+                title="Close (Esc)"
+              />
+            }
+          >
+            <XIcon />
+          </DialogClose>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

@@ -2,6 +2,7 @@
 // One dialog body for every act type: the fields of the open type, a live tax-effect preview, Zod field
 // errors, and the authorize() refusal in place of the submit button. Posts the parsed act via the workspace.
 import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { MaskedText } from '@/components/atoms'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,7 @@ import type { OpenActRequest, Workspace } from '@/components/workspace/types'
 import { ActInputZ, type ApprovalDerived, VERIFICATION_METHODS } from '@/lib/model/acts'
 import { needsPartner, PARTNER_THRESHOLD, whatIfEffect } from '@/lib/model/effects'
 import { AREA_LABEL, type AreaKey } from '@/lib/model/ids'
-import { plainMasked } from '@/lib/model/mask-token'
+import { plainMasked, sameValue } from '@/lib/model/mask-token'
 import { scopeOf } from '@/lib/model/project'
 import {
   type AdjustFieldT, type AdjustPreview, type Answer, buildInput, DECIDE_KIND_LABEL, DISPOSITION_LABEL, DISPOSITION_NEEDS_REF,
@@ -141,7 +142,7 @@ export function ActForm({ req, onDone, onOpen }: ActFormProps) {
       <DialogFooter>
         {!auth.ok && <p role="status" className="text-sm text-destructive sm:mr-auto sm:self-center"><MaskedText text={auth.reason} context={req.target} /></p>}
         <DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose>
-        {auth.ok && <Button type="submit" disabled={busy}>{busy ? 'Saving…' : SUBMIT[req.type]}</Button>}
+        {auth.ok && <Button type="submit" disabled={busy} focusableWhenDisabled className="data-disabled:opacity-50">{busy ? 'Saving…' : SUBMIT[req.type]}</Button>}
       </DialogFooter>
     </form>
   )
@@ -173,6 +174,8 @@ function Section(p: SectionProps) {
 
 function VerifyFields({ req, d, set, err, ws }: SectionProps) {
   const methods: MethodT[] = d.method === 'accepted_check_tied' ? [...VERIFICATION_METHODS, 'accepted_check_tied'] : [...VERIFICATION_METHODS]
+  // The value attested is the one shown when the form opened; a value polled in since needs an explicit re-confirm.
+  const live = ws.state.claims[req.target]?.effective ?? null
   return (
     <>
       <RadioGroup value={d.method} onValueChange={(v) => set({ method: v as MethodT })} aria-label="Verification type">
@@ -192,7 +195,15 @@ function VerifyFields({ req, d, set, err, ws }: SectionProps) {
       {err.method && <p className="text-xs text-destructive">{err.method}</p>}
       <LevelField d={d} set={set} err={err} ws={ws} />
       <p className="text-sm">
-        Value you agreed: <span className="tabular-nums font-medium">{formatVal(ws.state.claims[req.target]?.effective)}</span>
+        Value you agreed: <span className="tabular-nums font-medium">{formatVal(d.seen)}</span>
+        {!sameValue(d.seen, live) && (
+          <Button type="button" size="xs" variant="outline" className="ml-2" onClick={(e) => {
+            // This button unmounts once the value matches, so commit now and hand focus to the submit the footer then renders.
+            const form = e.currentTarget.form
+            flushSync(() => set({ seen: live }))
+            form?.querySelector<HTMLElement>('button[type="submit"]')?.focus()
+          }}>{`Verify ${formatVal(live)} instead`}</Button>
+        )}
       </p>
       <RefsField label="Evidence" value={d.evidence} onChange={(evidence) => set({ evidence })} error={err.evidence} />
     </>

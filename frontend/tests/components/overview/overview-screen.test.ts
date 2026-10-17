@@ -157,4 +157,13 @@ describe('overview screen', () => {
     expect(t).toContain('Clients use the client portal')
     expect(t).not.toContain('Done when:')
   })
+
+  // A row's opener unmounts once its act lands, so the always-rendered section is the focus return (act-host.tsx,
+  // returnFocusTo). Not the <ul>: it goes with its last row.
+  it('marks Your next steps as a focus return', () => {
+    const open = render(ws('st-02')).match(/<section[^>]*aria-labelledby="ov-next"[^>]*>/)?.[0] ?? ''
+    expect(open).toContain(' data-focus-return="true"')
+    expect(open).toContain(' tabindex="-1"')
+    expect(open).toContain('focus-visible:ring-2')
+  })
 })

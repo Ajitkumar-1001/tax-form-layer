@@ -285,6 +285,16 @@ describe('draft → ActInput', () => {
       expect(parsed.data.body.level).toBe('preparer')
     }
   })
+  it('verify: the value seen when the form opened is what posts, so a value polled in later is refused, not attested', () => {
+    const req: OpenActRequest = { type: 'verify', target: 'F1040.19' }
+    const d = initialDraft(req, model, state)
+    const moved = stateAfter([{ type: 'adjust', target: 'F1040.19', body: { field: 'value', to: 500, reason: 'moved under the dialog', evidence: [] } }])
+    const input = buildInput(req, d, moved)
+    expect(input.type === 'verify' && input.body.seen_value).toBe(400)
+    const auth = authorize(model, moved, input, preparer)
+    expect(auth.ok).toBe(false)
+    expect(!auth.ok && auth.reason).toMatch(/F1040\.19 is now 500, not 400/) // the stale check, not some other refusal
+  })
   it('decide on a what-if pre-fills question, alternatives and the citation', () => {
     const d = initialDraft({ type: 'decide', target: 'whatif:standard_deduction' }, model, state)
     expect(d).toMatchObject({ decideKind: 'election', what_if: 'standard_deduction' })
