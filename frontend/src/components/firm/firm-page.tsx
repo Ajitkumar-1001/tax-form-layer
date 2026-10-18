@@ -44,7 +44,7 @@ export function FirmPage() {
       <Panel id="viewlog" title="Sensitive-data view log" hint="Every reveal of a masked value, granted or denied. The server records it before it answers.">
         <ViewLog />
       </Panel>
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <Panel id="time" title="Time against budget" hint="From time acts, against firm.budget_hours.">
           <TimeBudget />
         </Panel>
@@ -57,7 +57,7 @@ export function FirmPage() {
           </Panel>
         </div>
       </div>
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <Panel id="standards" title="Firm standards" hint="firm.starter_standards, as delivered in the packet.">
           <Standards />
         </Panel>

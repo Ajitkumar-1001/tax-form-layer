@@ -55,7 +55,7 @@ export function FindingCard({ finding: f, showClaims = false }: { finding: Findi
       <footer className="flex flex-wrap items-center gap-2 pt-1">
         {open ? (
           <>
-            <FindingFixButton finding={f} />
+            <FindingFixButton finding={f} className="h-auto max-w-full py-1 text-left whitespace-normal" />
             <RefLink to={f.id} className="text-xs">open finding</RefLink>
           </>
         ) : (
