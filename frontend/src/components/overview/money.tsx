@@ -80,7 +80,7 @@ export function MoneySection({ money }: { money: Money }) {
               : `${choices} engine alternatives (options, not errors) are not counted`}
           </li>
         )}
-        <li className="text-muted-foreground">{`Already corrected: ${stake(adjusted.fed, adjusted.ca)}`}</li>
+        <li className="text-muted-foreground">{`Changed by adjustments so far: ${stake(adjusted.fed, adjusted.ca)}`}</li>
       </ul>
     </section>
   )

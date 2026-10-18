@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getActs, getBootstrap, getPacket, postActs, postReveal, TIMEOUT_MS } from '@/components/workspace/api'
+import { ApiError, getActs, getBootstrap, getPacket, postActs, postIdentity, postReveal, TIMEOUT_MS, UNREACHABLE } from '@/components/workspace/api'
 
 const respond = (status: number, body: unknown) =>
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })))
@@ -50,5 +50,31 @@ describe('api', () => {
     expect(timeout).toHaveBeenCalledWith(TIMEOUT_MS)
     void getPacket('sha')
     expect(hang.mock.calls.at(-1)?.[1]?.signal).toBeUndefined()
+  })
+  // The browser rejects fetch with a bare TypeError('Failed to fetch') when the request never leaves the machine. Mapped at the
+  // source, so every caller (acts, Reveal, identity switch, boot) shows words, and a POST that may have landed is not called a no-op.
+  it('a request that cannot reach the server says so in words', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    const err = await postReveal('main', '«ssn·3309·eq:abc»', 'household:theo#ssn').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect((err as ApiError).status).toBe(0)
+    expect((err as ApiError).message).toBe(UNREACHABLE)
+    expect(UNREACHABLE).toBe('Could not reach the server; check your connection and try again.')
+  })
+  it('says so for acts, the identity switch, the poll, boot and the packet download too (the mapping sits in call())', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    const sends = [
+      () => postActs({ engagement: 'main', acts: [], base_seq: 0 }),
+      () => postIdentity('st-01'),
+      () => getActs('main', 0),
+      () => getBootstrap(),
+      () => getPacket('sha'),
+    ]
+    for (const send of sends) {
+      const err = await send().catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(ApiError)
+      expect((err as ApiError).status).toBe(0)
+      expect((err as ApiError).message).toBe(UNREACHABLE)
+    }
   })
 })

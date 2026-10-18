@@ -16,7 +16,7 @@ import { AREAS, AREA_LABEL, type AreaKey } from '@/lib/model/ids'
 import type { Money as PacketMoney } from '@/lib/model/packet-types'
 import type { AuthResult, NoteView, Role, State, StepView, Viewer } from '@/lib/model/state'
 import { identities } from '@/lib/model/viewer'
-import { type CellState, MATRIX_LEVELS, type MatrixLevel, partnerDesk, signoffMatrix, signTargets } from './filing-logic'
+import { type CellState, MATRIX_LEVELS, type MatrixLevel, partnerDesk, signoffMatrix, signTargets, sinceSigned } from './filing-logic'
 
 export type Jur = 'federal' | 'california'
 /** Jurisdictions in words (§3.2). */
@@ -328,6 +328,7 @@ export interface SignoffCellView {
   target: string; level: MatrixLevel; state: CellState
   by: string | null           // the signer's name, when signed (valid or reopened)
   changed: string[]           // reopened: the changed claims; [] otherwise
+  since: string[]             // reopened: what was recorded on the changed claims after the sign-off; [] otherwise
   action: 'Sign' | 'Re-sign' | null
   refusal: string | null      // the viewer's own level only, verbatim; null on a valid cell and whenever `note` is set
   whoSigns: string | null     // empty cells the viewer cannot sign, other levels: "Helen Strand signs"
@@ -373,6 +374,7 @@ export function signoffView(model: Model, state: State, viewer: Viewer, can: (i:
           state: c.state,
           by: c.signoff ? nameOf(model, c.signoff.actor) : null,
           changed: c.state === 'reopened' ? (c.signoff?.changed ?? []) : [],
+          since: c.signoff ? sinceSigned(model, state, c.signoff) : [],
           action: !auth.ok || c.state === 'valid' ? null : c.state === 'empty' ? 'Sign' : 'Re-sign',
           refusal: !auth.ok && note === null && c.level === own && c.state !== 'valid' ? auth.reason : null,
           whoSigns: !auth.ok && c.state === 'empty' && c.level !== own ? whoSigns(model, state, c.target, c.level) : null,

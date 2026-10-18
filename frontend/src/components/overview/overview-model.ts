@@ -284,9 +284,12 @@ export function nextOf(model: Model, state: State, viewer: Viewer): NextSteps {
   } else if (viewer.role === 'partner') {
     for (const v of state.adjusts) {
       if (v.reverted || !v.needs_partner || v.partner_covered) continue
+      // Signed in place, over the claim's whole area as on the desk; a target with no area takes the whole return (signTargets, filing-logic.ts).
+      const area = areaOfRef(model, v.target)
+      const request: OpenActRequest = { type: 'signoff', target: area ? `area:${area}` : 'return', prefill: { level: 'partner' } }
       rows.push({
         kind: 'partner_adjust', text: `Partner sign-off needed: ${v.target} (Federal ${formatMoney(v.effect.fed)}, California ${formatMoney(v.effect.ca)})`,
-        context: v.target, href: refHref(v.target),
+        context: v.target, request,
       })
     }
     once.push(...approval)

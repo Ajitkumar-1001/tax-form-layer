@@ -5,7 +5,7 @@
 import { type CSSProperties, useState } from 'react'
 import { CircleCheckIcon, FileTextIcon, PaperclipIcon } from 'lucide-react'
 import { MaskedText } from '@/components/atoms'
-import { formatMoney } from '@/components/atoms/format'
+import { balanceWords } from '@/components/atoms/format'
 import { ActButton } from '@/components/acts/act-host'
 import { ClientCopy } from '@/components/filing/client-copy'
 import { PrintSheet } from '@/components/filing/print-sheet'
@@ -105,13 +105,13 @@ function Approve({ sign, acting, className }: { sign: SignState; acting: boolean
 }
 
 function Balance({ title, side }: { title: string; side: TotalsSide }) {
-  const owe = side.balance_estimate
+  const { amount, words } = balanceWords(side.balance_estimate)
   const estimate = side.delta !== 0
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-lg font-semibold">{title}</h3>
-      <p className="text-6xl leading-none font-semibold tracking-tight tabular-nums sm:text-5xl">${formatMoney(Math.abs(owe))}</p>
-      <p className="text-base">{owe >= 0 ? 'you owe' : 'refund to you'}</p>
+      <p className="text-6xl leading-none font-semibold tracking-tight tabular-nums sm:text-5xl">{amount}</p>
+      <p className="text-base">{words}</p>
       {estimate && <p className="max-w-xs text-sm">Estimate: includes changes the tax software has not recomputed.</p>}
     </div>
   )

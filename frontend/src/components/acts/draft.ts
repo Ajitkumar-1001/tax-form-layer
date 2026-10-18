@@ -35,7 +35,7 @@ export interface FileT {
 
 /** Everything any act form edits. Only the fields of the open form's type are used. */
 export interface Draft {
-  method: MethodT
+  method: MethodT | null // verify: null until the person says how they checked it
   level: LevelT
   seen: Val // verify's seen_value, captured when the form opens
   field: AdjustFieldT
@@ -254,7 +254,7 @@ export function initialDraft(req: OpenActRequest, model: Model, state: State): D
   const requiredEntry = isRequiredEntry(model, t)
 
   return {
-    method: pick(VerifyMethod, p.method, suggestMethod(evidence)),
+    method: VerifyMethod.safeParse(p.method).data ?? null, // an attesting field starts unanswered; an opener's method still wins
     level: pick(Level, p.level, levelsFor(role)[0] ?? 'preparer'),
     seen: state.claims[t]?.effective ?? null,
     field: pick(AdjustFieldZ, p.field, 'value'),
@@ -302,7 +302,8 @@ export function buildInput(req: OpenActRequest, d: Draft, state: State): ActInpu
 
   switch (req.type) {
     case 'verify':
-      return { type: 'verify', target: t, body: { method: d.method, level: d.level, seen_value: d.seen, evidence, findings } }
+      // The suggestion only stands in to keep the candidate typed (and can() judging it): formErrors blocks it while the method is null.
+      return { type: 'verify', target: t, body: { method: d.method ?? suggestMethod(evidence), level: d.level, seen_value: d.seen, evidence, findings } }
     case 'adjust':
       return {
         type: 'adjust', target: t,
@@ -355,14 +356,28 @@ export function buildInput(req: OpenActRequest, d: Draft, state: State): ActInpu
 
 // ── Errors ──────────────────────────────────────────────────────────────────────────────
 
-type Issue = { path: PropertyKey[]; message: string }
+type Issue = { path: PropertyKey[]; message: string; code?: string; origin?: string; minimum?: number | bigint; maximum?: number | bigint }
 
-/** First Zod issue per field. Body fields are keyed by name ('reason'), others by their top key ('target'). */
+/**
+ * A field error in formErrors' plain words. The schema is shared with the server, so Zod's text is translated here: text and
+ * list bounds by issue code, the PIN and the hours by field; an issue this mapping does not cover keeps Zod's text.
+ */
+function plainIssue(i: Issue, key: string): string {
+  if (i.code === 'too_small' && i.origin === 'string') return Number(i.minimum) > 1 ? `Write at least ${i.minimum} characters` : 'Required'
+  if (i.code === 'too_small' && i.origin === 'array') return 'Choose at least one'
+  if (i.code === 'too_big' && i.origin === 'string') return `Write at most ${i.maximum} characters`
+  if (i.code === 'too_big' && i.origin === 'array') return `Use at most ${i.maximum} items`
+  if (key === 'pin') return 'Enter 5 digits'
+  if (key === 'hours') return 'Enter hours above 0, up to 24'
+  return i.message
+}
+
+/** First issue per field, in plain words. Body fields are keyed by name ('reason'), others by their top key ('target'). */
 export function issuesByField(issues: readonly Issue[]): Record<string, string> {
   const out: Record<string, string> = {}
   for (const i of issues) {
     const key = String(i.path[0] === 'body' ? (i.path[1] ?? 'body') : (i.path[0] ?? 'form'))
-    out[key] ??= i.message
+    out[key] ??= plainIssue(i, key)
   }
   return out
 }
@@ -370,6 +385,7 @@ export function issuesByField(issues: readonly Issue[]): Record<string, string> 
 /** Rules the schema cannot express because they depend on what the form is editing. */
 export function formErrors(req: OpenActRequest, d: Draft, state: State): Record<string, string> {
   const e: Record<string, string> = {}
+  if (req.type === 'verify' && !d.method) e.method = 'Choose how you checked it'
   if (req.type === 'adjust') {
     const current = state.claims[req.target]?.effective ?? null
     const to = parseTo(d.to, d.field, current)
@@ -460,8 +476,11 @@ export function previewAdjust(model: Model, state: State, target: string, field:
   return { from, effect: typed ? effect : null, partner: typed && d.needs_partner, hint }
 }
 
-/** Review-note text proposing an adjust. A sensitive value is left out: free text is stored unmasked. */
+/** Review-note text proposing an adjust. A sensitive value is left out: free text is stored unmasked. An amount reads as the line shows it. */
 export function proposalText(model: Model, target: string, field: AdjustFieldT, from: Val, to: string, reason: string): string {
-  const change = model.claims[target]?.sensitive ? 'new value withheld (sensitive)' : `${formatVal(from)} → ${to.trim() || '?'}`
+  const v = parseTo(to, field, from)
+  const change = model.claims[target]?.sensitive
+    ? 'new value withheld (sensitive)'
+    : `${formatVal(from)} → ${typeof v === 'number' || typeof v === 'boolean' ? formatVal(v) : to.trim() || '?'}`
   return `Proposed ${field}: ${change}. ${reason}`.trim()
 }

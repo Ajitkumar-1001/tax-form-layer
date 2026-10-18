@@ -269,3 +269,16 @@ describe('authorize: what can be judged (lead decisions)', () => {
     expect(l.post('st-01', dispose('doc:D31#page32', { disposition: 'informational' }))).toEqual(OK)
   })
 })
+
+describe('authorize: a stale verify says what moved, in words that match the screen (UX review acts-masking-10)', () => {
+  it('a verify of a value that moved names the new value and asks for a fresh check, not a reload', () => {
+    const l = log()
+    expect(l.post('st-01', adjust('F1040.19', 500))).toEqual(OK)
+    const r = l.post('st-01', verify('F1040.19', 400))
+    expect(r.ok).toBe(false)
+    expect(!r.ok && r.reason).toContain('500')
+    // The form has already pulled the log by now and shows the new value, so "reload" would send the person away from it.
+    expect(!r.ok && r.reason).not.toMatch(/reload/i)
+    expect(r).toEqual({ ok: false, reason: 'F1040.19 changed to 500 since you saw 400. Check the new value, then verify it.' })
+  })
+})

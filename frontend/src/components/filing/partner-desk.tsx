@@ -118,7 +118,7 @@ export function PartnerDesk(): ReactElement {
               </div>
               {(i.effect.fed !== 0 || i.effect.ca !== 0) && (
                 <div className="text-xs whitespace-nowrap sm:shrink-0 sm:text-right">
-                  Federal <Money value={i.effect.fed} /> · California <Money value={i.effect.ca} />
+                  {i.kind === 'adjust' ? 'Tax effect: ' : 'At stake: '}Federal <Money value={i.effect.fed} /> · California <Money value={i.effect.ca} />
                 </div>
               )}
             </li>

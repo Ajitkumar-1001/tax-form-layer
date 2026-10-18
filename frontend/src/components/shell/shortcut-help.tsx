@@ -29,7 +29,7 @@ export const SHORTCUTS: { section: 'Everywhere' | 'Queue' | 'Full trace page'; i
       { keys: ['a'], label: 'Adjust' },
       { keys: ['v'], label: 'Verify' },
       { keys: ['n'], label: 'Add a note' },
-      { keys: ['u'], label: 'Undo your last act' },
+      { keys: ['u'], label: 'Revert your last act (asks first)' },
       { keys: ['/'], label: 'Search the queue' },
     ],
   },
@@ -85,8 +85,9 @@ export function ShortcutHelp() {
           <DialogHeader>
             <DialogTitle>Keyboard shortcuts</DialogTitle>
             <DialogDescription>
-              Single keys and ⌘B work while you are not typing in a field or using a menu, ⌘B only on screens 1024 px
-              wide or more. ⌘K works anywhere. On Windows and Linux, ⌘ is Ctrl.
+              Queue keys other than Esc work only while focus is in the queue or in the open claim, not from the
+              navigation or the top bar. Single keys and ⌘B do nothing while you type in a field or use a menu, and ⌘B
+              needs a screen 1024 px wide or more. ⌘K works anywhere. On Windows and Linux, ⌘ is Ctrl.
             </DialogDescription>
           </DialogHeader>
           {SHORTCUTS.map((s) => (

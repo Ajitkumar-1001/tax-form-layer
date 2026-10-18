@@ -1,13 +1,14 @@
 'use client'
 // One dialog host for every act form. Any screen calls useOpenAct()({ type, target, prefill, findings }).
 // Mount ActHostProvider inside WorkspaceProvider: the forms read useWorkspace().
-import { type ComponentProps, createContext, type ReactNode, use, useRef, useState } from 'react'
+import { type ComponentProps, createContext, type ReactNode, use, useId, useRef, useState } from 'react'
+import { MaskedText } from '@/components/atoms'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { useWorkspace } from '@/components/workspace/context' // not the index: it re-exports the provider, which imports this file
 import type { OpenActRequest } from '@/components/workspace/types'
 import type { Finding } from '@/lib/model/checks/types'
-import { plainMasked } from '@/lib/model/mask-token'
+import { cn } from '@/lib/utils'
 import { ActDialog } from './act-dialog'
 import { canOpen, fixToRequest, normalizeRequest } from './draft'
 
@@ -88,22 +89,46 @@ export function useOpenAct(): OpenAct {
   return use(ActHostContext)
 }
 
-type ActButtonProps = OpenActRequest & Omit<ComponentProps<typeof Button>, 'type' | 'onClick'>
+type ActButtonProps = OpenActRequest &
+  Omit<ComponentProps<typeof Button>, 'type' | 'onClick'> & {
+    /** Refused: the id of a line the caller prints the reason in, once for a group. The button points there and prints none. */
+    reasonId?: string
+  }
 
 /**
- * Opens an act form. Disabled, with the authorize() reason as its tooltip, when the viewer may not do it.
- * Judged by canOpen(): a value the form has yet to collect never disables the button.
+ * Opens an act form. Refused (the viewer may not do it): aria-disabled, so it stays in the Tab order, described by the
+ * authorize() reason in words, printed beside it or in the caller's line when `reasonId` names one. A title reaches no
+ * keyboard, screen reader or phone. Judged by canOpen(): a value the form has yet to collect never disables the button.
  * The button itself is the opener (Safari and Firefox on macOS do not focus a clicked button).
  */
-export function ActButton({ type, target, prefill, findings, children, ...rest }: ActButtonProps) {
+export function ActButton({ type, target, prefill, findings, reasonId, children, ...rest }: ActButtonProps) {
   const openAct = useOpenAct()
+  const ownId = useId()
   const { req, auth } = canOpen({ type, target, prefill, findings }, useWorkspace())
+  if (auth.ok) {
+    return (
+      <Button type="button" {...rest} onClick={(e) => openAct(req, e.currentTarget)}>
+        {children}
+      </Button>
+    )
+  }
+  // focusableWhenDisabled renders aria-disabled="true" rather than disabled="", so Tab reaches the button; it opens nothing.
+  // The base class's disabled:pointer-events-none keys on the native attribute, so data-disabled restores it: no hover or press feedback.
   const button = (
-    <Button type="button" {...rest} disabled={rest.disabled || !auth.ok} onClick={(e) => openAct(req, e.currentTarget)}>
+    <Button type="button" {...rest} disabled focusableWhenDisabled aria-describedby={reasonId ?? ownId} className={cn(rest.className, 'data-disabled:pointer-events-none data-disabled:opacity-50')}>
       {children}
     </Button>
   )
-  return auth.ok ? button : <span title={plainMasked(auth.reason)} className="inline-flex">{button}</span>
+  if (reasonId) return button
+  // Not OvAct, which imports this file. A gate reason can quote a note that holds a token: MaskedText masks it.
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+      {button}
+      <span id={ownId} data-refusal className="text-xs text-muted-foreground">
+        <MaskedText text={auth.reason} context={target} />
+      </span>
+    </span>
+  )
 }
 
 /** The finding's suggested fix (pre-filled, addressing the finding), or a generic resolve when it has none. */

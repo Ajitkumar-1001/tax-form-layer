@@ -30,7 +30,11 @@ export function FilingPage(): ReactElement {
       </header>
       <RequiredSteps />
       <ApprovalSubmit />
-      <Section id="matrix" title="Sign-offs" hint="A sign-off covers the values and evidence in its scope and reopens itself when either changes.">
+      <Section
+        id="matrix"
+        title="Sign-offs"
+        hint="A sign-off covers the values and decisions, the evidence, the findings and the open notes and questions in its scope, and reopens itself when any of them changes."
+      >
         <SignoffMatrix />
       </Section>
       <Section id="desk" title="Partner desk" hint="Adjustments over 1,000 and open process findings that need the partner's sign-off.">

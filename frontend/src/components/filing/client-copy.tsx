@@ -13,6 +13,9 @@ export function ClientCopy() {
   const p = model.packet
   const filed = state.filings.filter((f) => f.kind === 'submit' && f.results.some((r) => r.status === 'accepted'))
   const spouses = p.household.people.filter((x) => x.role === 'taxpayer' || x.role === 'spouse').map((x) => x.name)
+  const fed = keyLines(model, state, KEY_LINES.federal)
+  const ca = keyLines(model, state, KEY_LINES.california)
+  const changed = state.totals.federal.delta !== 0 || state.totals.california.delta !== 0 || [...fed, ...ca].some((l) => l.notRecomputed)
   return (
     <article className="flex flex-col gap-5">
       <header className="flex flex-col gap-1 border-b pb-3">
@@ -31,13 +34,15 @@ export function ClientCopy() {
         <Summary title="California (Form 540NR)" side={state.totals.california} rows={CA_ROWS} />
       </div>
       <div className="grid gap-6 sm:grid-cols-2">
-        <Lines title="Federal key lines" lines={keyLines(model, state, KEY_LINES.federal)} />
-        <Lines title="California key lines" lines={keyLines(model, state, KEY_LINES.california)} />
+        <Lines title="Federal key lines" lines={fed} />
+        <Lines title="California key lines" lines={ca} />
       </div>
-      <p className="text-xs text-muted-foreground">
-        Amounts marked “estimate” include changes made after the engine last computed the return; they are linear estimates until it
-        recomputes.
-      </p>
+      {changed && (
+        <p className="text-xs text-muted-foreground">
+          The tax software has not recomputed this return since our changes. Lines marked “not recomputed” and the figures above each
+          “Changes since…” line are its figures from before them; the refund or balance due includes every change, as an estimate.
+        </p>
+      )}
     </article>
   )
 }
@@ -86,7 +91,7 @@ function Lines({ title, lines }: { title: string; lines: CopyLine[] }) {
               <td className="py-1 pr-2">{l.label}</td>
               <td className="py-1 text-right whitespace-nowrap">
                 {typeof l.value === 'number' ? <Money value={l.value} /> : String(l.value ?? '—')}
-                {l.estimate && <span className="ml-1 text-muted-foreground">estimate</span>}
+                {l.notRecomputed && <span className="ml-1 text-muted-foreground">not recomputed</span>}
               </td>
             </tr>
           ))}

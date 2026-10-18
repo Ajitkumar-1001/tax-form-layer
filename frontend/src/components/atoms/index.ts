@@ -7,14 +7,14 @@
 //   <StatusPill status={claim.status} />           open | adjusted | verified | accepted | read_ok | unreviewed
 //   <SupportLetters support={claim.support} />     D R C P T, filled / outlined (check) / ringed (bulk) / faint (none)
 //   <FlagChips flags={claim.flags} />              needs partner, reopened, stale, blocks filing, not yet in file, frozen
-//   <MaskedText text={value} context={ref} />      masked tokens as •••-••-3309 + Reveal (logged; refusals shown inline)
+//   <MaskedText text={value} context={ref} />      masked tokens as •••-••-3309 + Reveal (logged; refusals shown on their own line)
 //   <Ago iso={at} now?={state.clock} />            relative time; pass `now` to measure from the season clock
 //
-// Helpers: refHref(ref), refLabel(model, ref), formatMoney(v, signed?), formatClock(iso), relativeTime(iso, nowMs),
-// initials(name). SUPPORT_LEGEND is the one-line key to the support letters.
+// Helpers: refHref(ref), refLabel(model, ref), formatMoney(v, signed?), balanceWords(owe), formatClock(iso),
+// relativeTime(iso, nowMs), initials(name). SUPPORT_LEGEND is the one-line key to the support letters.
 // RefLink, MaskedText and Ago are client components; RefLink and MaskedText degrade gracefully outside the provider.
 export { Ago } from './ago'
-export { formatClock, formatMoney, initials, refHref, refLabel, relativeTime } from './format'
+export { balanceWords, formatClock, formatMoney, initials, refHref, refLabel, relativeTime } from './format'
 export { MaskedText } from './masked-text'
 export { Money, Stake } from './money'
 export { RefLink } from './ref-link'

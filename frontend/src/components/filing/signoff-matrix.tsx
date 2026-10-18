@@ -68,6 +68,7 @@ function SignoffCell({ cell: c, rowLabel }: { cell: SignoffCellView; rowLabel: s
             {`Changed after ${c.by} signed`}
           </span>
           <ItemList what="Changed" refs={c.changed} step={null} />
+          {c.since.length > 0 && <span className="text-xs text-muted-foreground">{`Since then: ${c.since.join('; ')}`}</span>}
         </>
       )}
       {c.action ? (

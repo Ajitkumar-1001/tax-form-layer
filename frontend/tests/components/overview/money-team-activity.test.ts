@@ -57,7 +57,9 @@ describe('money at stake', () => {
     expect(t).toContain(`Net change if every error is fixed: Federal ${formatMoney(Math.round(money.errors.net.fed), true)} · California ${formatMoney(Math.round(money.errors.net.ca), true)}`)
     expect(t).toContain(`Unproven: ${money.unproven.count} item`)
     expect(t).toContain(`${money.choices} engine alternative`)
-    expect(t).toContain('Already corrected: Federal 0 · California 0')
+    // Not "corrected": that word is the Where we are spectrum's count of claims whose status is adjusted, a different measure.
+    expect(t).toContain('Changed by adjustments so far: Federal 0 · California 0')
+    expect(t).not.toContain('Already corrected')
   })
 
   it('lists the top errors in order, each with its stake and a link to its claim', () => {

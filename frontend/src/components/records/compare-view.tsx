@@ -8,17 +8,19 @@ import { Ago, MaskedText, Money, RefLink } from '@/components/atoms'
 import { ActButton } from '@/components/acts/act-host'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/components/workspace/context'
+import { BannerView } from './claim-table'
 import { type DiffRow, diffSides, sideOptions, sinceMe } from './compare'
+import { totalsNotes } from './rows-return'
 
 const FIELD = 'h-8 rounded-md border bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring'
 const PAGE = 60
 
 export function CompareView() {
   const params = useSearchParams()
-  const { state } = useWorkspace()
+  const { model, state } = useWorkspace()
   if (params.get('since') === 'me') return <SinceMeView />
-  // v3 → now is empty until someone adjusts, so open on the engine's last change instead.
-  const adjusted = state.adjusts.some((v) => !v.reverted)
+  // v3 → now is empty until someone adjusts a line (a household fact is not on it), so open on the engine's last change instead.
+  const adjusted = state.adjusts.some((v) => !v.reverted && model.claims[v.target]?.kind === 'line')
   return <VersionsView a={params.get('a') ?? (adjusted ? 'v3' : 'v2')} b={params.get('b') ?? (adjusted ? 'now' : 'v3')} />
 }
 
@@ -36,7 +38,7 @@ function VersionsView({ a, b }: { a: string; b: string }) {
   const rows = diffSides(model, state, a, b, nameOf)
   const go = (na: string, nb: string) => router.replace(`/compare?a=${encodeURIComponent(na)}&b=${encodeURIComponent(nb)}`)
   const shown = rows ? (all ? rows : rows.slice(0, PAGE)) : []
-  const totalTax = (k: string) => rows?.find((r) => r.key === k)
+  const totalTax = (k: string) => rows?.find((r) => r.key === k && !r.field)
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-6 print:p-0">
@@ -97,6 +99,7 @@ function VersionsView({ a, b }: { a: string; b: string }) {
               ) : null
             })}
           </p>
+          {(a === 'now' || b === 'now') && <BannerView banner={totalsNotes(state)[0]} />}
           <DiffTable rows={shown} />
           {rows.length > PAGE && (
             <Button size="sm" variant="outline" onClick={() => setAll(!all)} className="self-start print:hidden">
@@ -126,7 +129,7 @@ function DiffTable({ rows }: { rows: DiffRow[] }) {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.key} className="border-t align-top">
+            <tr key={`${r.key}:${r.field ?? 'value'}`} className="border-t align-top">
               <td className="px-2 py-1 whitespace-nowrap">
                 {r.ref ? <RefLink to={r.ref} /> : <span className="font-mono text-[0.9em]">{r.key}</span>}
               </td>

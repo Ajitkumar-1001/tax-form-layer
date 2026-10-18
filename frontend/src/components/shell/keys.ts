@@ -1,4 +1,4 @@
-// Where a global single-key shortcut (the queue's j/k/x…, ⌘B, the trace's 1/2/3) stands aside. Typed over
+// Where a single-key shortcut (the queue's j/k/x…, ⌘B, the trace's 1/2/3) stands aside, and where the queue's keys run at all. Typed over
 // closest/matches only, so Node tests can pass stub elements.
 export type ElLike = Pick<Element, 'closest' | 'matches'> | null
 
@@ -23,4 +23,13 @@ export function inOverlay(el: ElLike): boolean {
  *  of TYPING_SELECTOR, because the claim drawer's Esc branch reads isTypingTarget and Esc there must still close it. */
 export function takesTypeahead(el: ElLike): boolean {
   return !!el?.closest('[role="combobox"]')
+}
+
+const QUEUE_KEY_REGIONS = '[data-worklist], [data-claim-drawer]'
+
+/** Whether a keydown on this target is the queue's (rule 13; WCAG 2.1.4: active only while its component has focus):
+ *  inside the worklist (queue-screen.tsx's section) or the claim drawer, and not in a field, on a Select trigger
+ *  (typeahead) or in an overlay opened there. Never from the rail, the top bar, a toast, <main> or <body>. */
+export function takesQueueKeys(el: ElLike): boolean {
+  return !!el?.closest(QUEUE_KEY_REGIONS) && !isTypingTarget(el) && !inOverlay(el) && !takesTypeahead(el)
 }

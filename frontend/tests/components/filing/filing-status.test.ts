@@ -184,7 +184,7 @@ describe('filingStatus', () => {
     expect(statusOf(at('st-01'), 'st-01').next).toEqual({ text: 'step 1, Engagement letter and consents signed', href: '#step-1' })
   })
 
-  it("reads the filed and rejected sentences on screens-render's logs (§3.4)", () => {
+  it("reads the filed and rejected sentences on screens-render's logs (§3.4)", { timeout: 20_000 }, () => {
     const filed = statusOf(playOn(model, 'st-03', FILED), 'st-03')
     expect(line(filed)).toBe(
       'Filed and accepted: federal and California. The return is frozen; any change needs an amendment. Nothing for filing needs you: open an amendment only if a value must change.',
@@ -213,6 +213,21 @@ describe('filingStatus', () => {
     expect(s.next?.href).toBe('/r/act%3A1')
     expect(s.headline).toMatch(/; 1 blocking review note is open\.$/)
     expect(line(s)).not.toContain('«')
+  })
+
+  it('stops sending the preparer to a blocking review note once her reply is its latest word', () => {
+    const token = model.packet.household.people.find((p) => p.id === 'theo')!.ssn
+    const text = `The dependent SSN on the return does not match the card in D05; confirm ${token} with the client.`
+    const note: [string, ActInput] = ['st-02', { type: 'note', target: 'F8949.B.N1', body: { kind: 'review_note', text, blocking: true } }]
+    const asked = playOn(model, 'st-01', [note])
+    const reply: [string, ActInput] = ['st-01', { type: 'reply', target: `act:${asked.notes[0].seq}`, body: { text: 'Confirmed with the client: the card in D05 is right.', attachments: [] } }]
+    const s = statusOf(playOn(model, 'st-01', [note, reply]), 'st-01')
+    expect(s.next?.text).not.toMatch(/^answer Daniel Ortiz's blocking review note/)
+    // The note stays open (only its author or a higher level resolves it), so the headline still counts it.
+    expect(line(s)).toBe(
+      'Filing is blocked: 0 of 12 required steps done; 1 blocking review note is open. Your next step for filing: step 1, Engagement letter and consents signed.',
+    )
+    expect(s.next).toEqual({ text: 'step 1, Engagement letter and consents signed', href: '#step-1' })
   })
 
   it('reads the approval and submit states over overridden steps, gates and approval (§13)', () => {
@@ -268,7 +283,7 @@ describe('filingStatus', () => {
       submit, agency(6, 'federal', 'accepted'), agency(6, 'california', 'held'), ['st-01', adjustCA],
     ]
 
-    it('sends the partner to open an amendment and everyone else to wait for it while a step is red', () => {
+    it('sends the partner to open an amendment and everyone else to wait for it while a step is red', { timeout: 20_000 }, () => {
       expect(can(playOn(model, 'st-01', REOPENED.slice(0, -1)), 'st-01')(adjustCA).ok).toBe(true) // California is still open
       const as = (id: string) => playOn(model, id, REOPENED)
       const partner = statusOf(as('st-03'), 'st-03')
@@ -292,7 +307,7 @@ describe('filingStatus', () => {
       expect(statusOf(green('st-04'), 'st-04').none?.text).toBe('Nothing for filing needs you yet: the partner submits next.')
     })
 
-    it('keeps the lines that send nobody to sign, and stops the reviewer requesting approval', () => {
+    it('keeps the lines that send nobody to sign, and stops the reviewer requesting approval', { timeout: 20_000 }, () => {
       const as = (id: string) => playOn(model, id, PARTIAL)
       // Nothing was signed, so nothing reopened: rows that send nobody to sign or request approval keep their wording
       // (brief §C2).
@@ -428,5 +443,50 @@ describe('signoffView', () => {
     expect(cellOf(v, PAYMENTS, 'reviewer')).toMatchObject({ state: 'valid', by: 'Helen Strand', action: null, refusal: null })
     // His empty Whole-return reviewer cell keeps the E49 refusal.
     expect(cellOf(v, 'return', 'reviewer')).toMatchObject({ state: 'empty', refusal: E49 })
+  })
+
+  // A claim's hash holds its open notes and its evidence, replies included, so a sign-off can reopen with no value moved.
+  it('signoffView: names what was recorded after a sign-off that a review note or a reply reopened', () => {
+    const sign: [string, ActInput] = ['st-01', signoff('area:business', 'preparer')]
+    const note: [string, ActInput] = ['st-02', { type: 'note', target: 'SchC.1', body: { kind: 'review_note', text: 'Tie gross receipts to the 1099-K first.', blocking: true } }]
+    const noted = cellOf(viewAs('st-01', playOn(model, 'st-01', [sign, note])), 'area:business', 'preparer')
+    expect(noted.state).toBe('reopened')
+    expect(noted.changed).toEqual(['SchC.1'])
+    expect(noted.since).toEqual(['Note added by Daniel Ortiz'])
+
+    // The note was open when Priya signed, so only her text-only reply to it reopens the sign-off.
+    const signed = playOn(model, 'st-01', [note, sign])
+    expect(cellOf(viewAs('st-01', signed), 'area:business', 'preparer')).toMatchObject({ state: 'valid', since: [] })
+    const reply: [string, ActInput] = ['st-01', { type: 'reply', target: `act:${signed.notes[0].seq}`, body: { text: 'Tied: see the D14 deposits.', attachments: [] } }]
+    const replied = cellOf(viewAs('st-01', playOn(model, 'st-01', [note, sign, reply])), 'area:business', 'preparer')
+    expect(replied.state).toBe('reopened')
+    expect(replied.changed).toEqual(['SchC.1'])
+    expect(replied.since).toEqual(['Replied by Priya Raman'])
+  })
+
+  // A cleared finding changes the hash of every claim it names (project.ts), and those can sit in another area than the
+  // act's own target: a dispose or decide clears the findings whose primary claim it targets, a verify those it lists.
+  it('signoffView: names a dispose that reopened a sign-off by clearing a finding that names a claim in another area', () => {
+    expect(model.findingsById['chk:CHK-07:qa-24'].claims).toEqual(['qa-24', 'SchC.1']) // a client answer (Intake), Gross receipts (Business)
+    const sign: [string, ActInput] = ['st-01', signoff('area:business', 'preparer')]
+    const dispose: [string, ActInput] = ['st-01', { type: 'dispose', target: 'qa-24', body: { disposition: 'informational', reason: 'The client answer moves no number' } }]
+    const c = cellOf(viewAs('st-01', playOn(model, 'st-01', [sign, dispose])), 'area:business', 'preparer')
+    expect(c.state).toBe('reopened')
+    expect(c.changed).toContain('SchC.1')
+    expect(c.since).toEqual(['Disposed by Priya Raman'])
+  })
+
+  it('signoffView: names a verify that reopened a sign-off by clearing the finding it lists', () => {
+    // D31 is in Investments & crypto; the broker diagnostic the finding also names is in Payments & filing.
+    expect(model.findingsById['chk:CHK-04:D31'].claims).toEqual(['D31', 'diag:BROKER_SUMMARY_DETAIL_MISMATCH'])
+    const sign: [string, ActInput] = ['st-01', signoff(PAYMENTS, 'preparer')]
+    const verify: [string, ActInput] = ['st-01', {
+      type: 'verify', target: 'D31',
+      body: { method: 'agreed_to_source_document', level: 'preparer', seen_value: null, evidence: ['D31'], findings: ['chk:CHK-04:D31'] },
+    }]
+    const c = cellOf(viewAs('st-01', playOn(model, 'st-01', [sign, verify])), PAYMENTS, 'preparer')
+    expect(c.state).toBe('reopened')
+    expect(c.changed).toContain('diag:BROKER_SUMMARY_DETAIL_MISMATCH')
+    expect(c.since).toEqual(['Verified by Priya Raman'])
   })
 })

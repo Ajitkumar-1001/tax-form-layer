@@ -7,10 +7,11 @@ import { createElement as h, type ReactElement } from 'react'
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { actsOf, readPacket } from '../records/fixture'
+import { buildInput, initialDraft } from '@/components/acts/draft'
 import { ClaimPane } from '@/components/trace/claim-pane'
 import { WorkspaceContext } from '@/components/workspace/context'
 import type { Workspace } from '@/components/workspace/types'
-import type { Act, ActInput } from '@/lib/model/acts'
+import { type Act, type ActInput, ActInputZ } from '@/lib/model/acts'
 import { authorize } from '@/lib/model/authorize'
 import { buildModel } from '@/lib/model/build'
 import { AREAS } from '@/lib/model/ids'
@@ -20,7 +21,7 @@ import { maskPacket } from '@/lib/server/mask'
 import { type Filters, GROUPS, buildQueue } from '@/components/queue/queue-model'
 import {
   AREA_OPTIONS, HIDE_EXPLAIN_KEY, QueueScreen, acceptRefusal, clipPlain, cursorFrom, cursorIndex, pickState, postText, splitTied, stepCursor,
-  visiblePicked,
+  undoRequest, visiblePicked,
 } from '@/components/queue/queue-screen'
 
 const nav = vi.hoisted(() => ({ query: '' }))
@@ -71,6 +72,15 @@ describe('queue screen', () => {
 
   it('makes no room for the drawer when nothing is selected', () => {
     expect(render(h(QueueScreen))).not.toContain('xl:pr-[')
+  })
+
+  // Rule 13: the section is where the single keys run (takesQueueKeys, keys.ts), and the focus return (act-host.tsx
+  // returnFocusTo) for an act a key opens from a row that the act then moves or removes. It outlives every row.
+  it("the Queue section is the worklist: the keys' region and the focus return", () => {
+    for (const q of ['', 'c=F8949.B.N1']) {
+      const tag = render(h(QueueScreen), q).match(/<section aria-label="Queue"[^>]*>/)![0]
+      for (const attr of [' data-worklist=""', ' data-focus-return="true"', ' tabindex="-1"']) expect(tag, `${q} · ${attr}`).toContain(attr)
+    }
   })
 
   // From lg to xl the drawer overlays the list's right side: the rows stay reachable by scrolling and j / k, but the
@@ -278,7 +288,7 @@ describe('bulk accept guard (splitTied)', () => {
   })
 })
 
-// A refusal whose reason quotes a token, as authorize.ts's verify "is now … not …" does for a sensitive claim.
+// A refusal whose reason quotes a token, as authorize.ts's stale-value verify ("changed to … since you saw …") does for a sensitive claim.
 const theoToken = () => masked.household.people.find((p) => p.id === 'theo')!.ssn
 const refused = () => ({ ok: false as const, reason: `household:theo#ssn is now "${theoToken()}", not "x"` })
 const input = (target: string): ActInput => ({ type: 'note', target, body: { kind: 'memo', text: 'n', blocking: false } })
@@ -328,6 +338,22 @@ describe('postText (bulk toasts and the undo label)', () => {
     expect(t.allowed).toEqual([])
     expect(t.none).toContain('•••-••-3309')
     expect(t.none).not.toContain('«')
+  })
+})
+
+// u is a key that writes, so it opens a dialog (rule 13): a revert cannot itself be reverted (authorize.ts), so a direct
+// post could leave no Undo. The form posts what the old inline u posted.
+describe('undoRequest (u)', () => {
+  it("undoRequest is a Revert of the viewer's own last live act with the queue's reason, a request authorize() allows (none on an empty log)", () => {
+    const acts = actsOf(model, [['st-01', input('SchC.8')], ['st-02', input('SchC.9')]])
+    const req = undoRequest(acts, 'st-01')
+    expect(req).toEqual({ type: 'revert', target: `act:${acts[0].seq}`, prefill: { reason: 'Undone from the queue (u)' } })
+    const s = project(model, acts, viewer)
+    const x = buildInput(req!, initialDraft(req!, model, s), s)
+    expect(x).toEqual({ type: 'revert', target: `act:${acts[0].seq}`, body: { reason: 'Undone from the queue (u)' } })
+    expect(ActInputZ.safeParse(x).success).toBe(true)
+    expect(authorize(model, s, x, viewer)).toEqual({ ok: true })
+    expect(undoRequest([], 'st-01')).toBeNull()
   })
 })
 

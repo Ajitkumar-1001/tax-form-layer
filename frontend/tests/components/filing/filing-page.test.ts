@@ -76,6 +76,11 @@ const wsOn = (viewerId: string, state: State): Workspace => ({ ...ws(viewerId), 
 const request: [string, ActInput] = ['st-03', { type: 'request_approval', target: 'return', body: {} }]
 const approve = (who: string): [string, ActInput] => [who, { type: 'client_approve', target: 'act:1', body: { pin: '12345' } }]
 const submit: [string, ActInput] = ['st-03', { type: 'file', target: 'return', body: { kind: 'submit', jurisdictions: ['federal', 'california'] } }]
+/** Copied from filing-status.test.ts: a change over 1,000 whose tax effect is Federal −4,402 · California −384. */
+const adjustSchC: ActInput = {
+  type: 'adjust', target: 'SchC.1',
+  body: { field: 'value', to: 151300, reason: 'Paywell 1099-K is already inside the Atlas deposits', evidence: ['D14'] },
+}
 const LOGS = {
   empty: [] as Act[],
   filed: log([request, approve('cu-01'), approve('cu-02'), submit, agency(4, 'federal', 'accepted'), agency(4, 'california', 'accepted'),
@@ -296,6 +301,31 @@ describe('per viewer, on the empty log', () => {
     }
     expect(count(plain(only(page('st-05'), '<section aria-labelledby="matrix"')), 'Not signed; Priya Raman or Marcus Bell signs')).toBe(10)
   })
+
+  // Rule 9: decisions, findings and open notes and questions reopen a sign-off too, so the hint names them beside values and evidence.
+  it('the Sign-offs hint names values, decisions, evidence, findings and open notes and questions', () => {
+    const matrix = text(only(page('st-01'), '<section aria-labelledby="matrix"'))
+    expect(matrix).toContain('reopens itself when any of them changes')
+    expect(matrix).toContain(
+      'A sign-off covers the values and decisions, the evidence, the findings and the open notes and questions in its scope, and reopens itself when any of them changes.',
+    )
+    expect(matrix).not.toContain('when either changes')
+    expect(matrix).not.toContain('(attachments and replies)')
+  })
+})
+
+describe('a reopened sign-off', () => {
+  // filing-status.test.ts's "names what was recorded" log: Priya signs Business, then Daniel adds a blocking review note.
+  it("st-01: the reopened cell names the signer, the changed claim and what was recorded since", () => {
+    const w = ws('st-01', log([
+      ['st-01', { type: 'signoff', target: 'area:business', body: { level: 'preparer' } }],
+      ['st-02', { type: 'note', target: 'SchC.1', body: { kind: 'review_note', text: 'Tie gross receipts to the 1099-K first.', blocking: true } }],
+    ]))
+    const matrix = text(only(render(h(FilingPage), w), '<section aria-labelledby="matrix"'))
+    expect(matrix).toContain('Changed after Priya Raman signed')
+    expect(matrix).toContain(`Changed: ${plainMasked(labelOf(model, 'SchC.1'))}`)
+    expect(matrix).toContain('Since then: Note added by Daniel Ortiz')
+  })
 })
 
 describe('caution', () => {
@@ -405,6 +435,27 @@ describe('partner desk', () => {
     for (const item of partnerDesk(model, ws('st-03').state)) expect(t).toContain(plainMasked(labelOf(model, item.target)))
     expect(t).not.toContain('—')
     expect(t).not.toMatch(/\b(?:Federal|California)\b/)
+  })
+
+  it("partner desk: labels a change's amounts as its tax effect", () => {
+    const desk = only(render(h(FilingPage), ws('st-03', log([['st-01', adjustSchC]]))), '<section aria-labelledby="desk"')
+    const t = text(desk)
+    expect(t).toContain('Tax effect: Federal −4,402 · California −384')
+    // The two process findings still carry no stake (CHK-56), so only the change gets an amount line.
+    expect(count(t, 'Tax effect:')).toBe(1)
+    expect(t).not.toContain('At stake:')
+  })
+
+  it("partner desk: labels a process finding's amounts as what is at stake", () => {
+    // No process finding on the packet has a stake, so one on the desk is given an over-1,000 stake to reach this branch.
+    const w = ws('st-03')
+    const finding = partnerDesk(model, w.state).find((i) => i.kind === 'finding')
+    expect(finding).toBeDefined()
+    const staked = { ...model, findings: model.findings.map((f) => (f.id === finding!.key ? { ...f, stake: { fed: 2500, ca: 0 } } : f)) }
+    const t = text(only(render(h(FilingPage), { ...w, model: staked }), '<section aria-labelledby="desk"'))
+    expect(t).toContain('At stake: Federal 2,500 · California 0')
+    expect(count(t, 'At stake:')).toBe(1)
+    expect(t).not.toContain('Tax effect:')
   })
 
   it('gives st-01 the refusal line and no checkbox', () => {

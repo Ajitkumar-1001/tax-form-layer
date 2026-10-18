@@ -1,11 +1,14 @@
 'use client'
 // /firm, the firm administrator's home (spec §3.9): view log, time against budget, standards, staff,
 // engagements (fresh copy) and assignments.
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useId, useState } from 'react'
 import { ShieldCheckIcon, ShieldOffIcon } from 'lucide-react'
-import { RefLink } from '@/components/atoms'
+import { MaskedText, RefLink } from '@/components/atoms'
 import { ActButton } from '@/components/acts/act-host'
+import { canOpen } from '@/components/acts/draft'
+import { OvAct } from '@/components/overview/replay-safe'
 import { Button } from '@/components/ui/button'
+import { UNREACHABLE } from '@/components/workspace/api'
 import { useWorkspace } from '@/components/workspace/context'
 import { cn } from '@/lib/utils'
 import { areaName, budgetOnly, hours, timeByPerson, viewLogRows } from './firm-logic'
@@ -114,48 +117,62 @@ function ViewLog() {
 }
 
 function TimeBudget() {
-  const { model, state, identities } = useWorkspace()
+  const ws = useWorkspace()
+  const { model, state, identities } = ws
+  const lineId = useId()
   const people = timeByPerson(state)
   const nameOf = (id: string) => identities.find((v) => v.id === id)?.name ?? id
+  // Log time is judged per row (a refusal need not be the same in every area). Each distinct reason prints once under the
+  // table, masked in the context of the first row it refuses, and every button it refuses points at it.
+  const rows = state.areas.map((a) => ({ a, auth: canOpen({ type: 'time', target: `area:${a.key}` }, ws).auth }))
+  const reasons = [...new Set(rows.flatMap(({ auth }) => (auth.ok ? [] : [auth.reason])))]
+  const firstTarget = (r: string) => `area:${rows.find(({ auth }) => !auth.ok && auth.reason === r)!.a.key}`
   return (
     <div className="flex flex-col gap-4">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b">
-            <th scope="col" className={TH}>Area</th>
-            <th scope="col" className={cn(TH, 'text-right')}>Logged</th>
-            <th scope="col" className={cn(TH, 'text-right')}>Budget</th>
-            <th scope="col" className={TH}>
-              <span className="sr-only">Log time</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {state.areas.map((a) => {
-            const over = a.budget !== null && a.hours > a.budget
-            return (
-              <tr key={a.key} className="border-b last:border-0">
-                <td className={TD}>{a.label}</td>
-                <td className={cn(TD, 'text-right tabular-nums', over && 'font-medium text-red-700 dark:text-red-300')}>{hours(a.hours)}</td>
-                <td className={cn(TD, 'text-right tabular-nums text-muted-foreground')}>{a.budget ?? '—'}</td>
-                <td className={cn(TD, 'text-right')}>
-                  <ActButton type="time" target={`area:${a.key}`} size="xs" variant="outline">
-                    Log time
-                  </ActButton>
-                </td>
-              </tr>
-            )
-          })}
-          {budgetOnly(model.packet.firm.budget_hours).map((b) => (
-            <tr key={b.key} className="border-b last:border-0 text-muted-foreground">
-              <td className={TD}>{b.label} (budget only)</td>
-              <td className={cn(TD, 'text-right')}>—</td>
-              <td className={cn(TD, 'text-right tabular-nums')}>{b.hours}</td>
-              <td className={TD} />
+      <div className="flex flex-col gap-1">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th scope="col" className={TH}>Area</th>
+              <th scope="col" className={cn(TH, 'text-right')}>Logged</th>
+              <th scope="col" className={cn(TH, 'text-right')}>Budget</th>
+              <th scope="col" className={TH}>
+                <span className="sr-only">Log time</span>
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map(({ a, auth }) => {
+              const over = a.budget !== null && a.hours > a.budget
+              return (
+                <tr key={a.key} className="border-b last:border-0">
+                  <td className={TD}>{a.label}</td>
+                  <td className={cn(TD, 'text-right tabular-nums', over && 'font-medium text-red-700 dark:text-red-300')}>{hours(a.hours)}</td>
+                  <td className={cn(TD, 'text-right tabular-nums text-muted-foreground')}>{a.budget ?? '—'}</td>
+                  <td className={cn(TD, 'text-right')}>
+                    <ActButton type="time" target={`area:${a.key}`} size="xs" variant="outline" reasonId={auth.ok ? undefined : `${lineId}-${reasons.indexOf(auth.reason)}`}>
+                      Log time
+                    </ActButton>
+                  </td>
+                </tr>
+              )
+            })}
+            {budgetOnly(model.packet.firm.budget_hours).map((b) => (
+              <tr key={b.key} className="border-b last:border-0 text-muted-foreground">
+                <td className={TD}>{b.label} (budget only)</td>
+                <td className={cn(TD, 'text-right')}>—</td>
+                <td className={cn(TD, 'text-right tabular-nums')}>{b.hours}</td>
+                <td className={TD} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {reasons.map((r, i) => (
+          <p key={r} id={`${lineId}-${i}`} data-refusal className="text-xs text-muted-foreground">
+            <MaskedText text={r} context={firstTarget(r)} />
+          </p>
+        ))}
+      </div>
       <div className="flex flex-col gap-1">
         <h3 className="text-xs font-medium text-muted-foreground uppercase">By person</h3>
         {people.length === 0 ? (
@@ -188,7 +205,10 @@ function Engagements() {
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/engagement', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      // A raw fetch (not api.ts's call()), so a rejection is mapped here: the browser's own words are "Failed to fetch".
+      const res = await fetch('/api/engagement', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {
+        throw new Error(UNREACHABLE)
+      })
       const json: unknown = await res.json().catch(() => null)
       if (!res.ok) throw new Error((json as { reason?: string } | null)?.reason ?? `${res.status} ${res.statusText}`)
       // The workspace bootstraps once per load; a reload picks up the new engagement cookie.
@@ -242,9 +262,10 @@ function Assignments() {
             <td className={TD}>{a.label}</td>
             <td className={TD}>{nameOf(state.assignments[a.key])}</td>
             <td className={cn(TD, 'text-right')}>
-              <ActButton type="assign" target={`area:${a.key}`} size="xs" variant="outline">
-                Assign
-              </ActButton>
+              {/* Only for roles that may assign (the panel hint says who), so a preparer gets no column of refusals. */}
+              <OvAct request={{ type: 'assign', target: `area:${a.key}` }} whenRefused="hide" size="xs" variant="outline">
+                Assign<span className="sr-only">{` ${a.label}`}</span>
+              </OvAct>
             </td>
           </tr>
         ))}

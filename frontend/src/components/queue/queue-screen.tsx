@@ -9,14 +9,15 @@ import { SearchIcon } from 'lucide-react'
 import { refHref } from '@/components/atoms'
 import { useOpenAct } from '@/components/acts/act-host'
 import { type DispositionT, type LevelT, fixToRequest } from '@/components/acts/draft'
-import { inOverlay, isTypingTarget, takesTypeahead } from '@/components/shell/keys'
+import { takesQueueKeys } from '@/components/shell/keys'
 import { CLAIM_DRAWER_TITLE_ID } from '@/components/trace/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useWorkspace } from '@/components/workspace/context'
-import type { ActInput } from '@/lib/model/acts'
+import type { OpenActRequest } from '@/components/workspace/types'
+import type { Act, ActInput } from '@/lib/model/acts'
 import { AREAS, AREA_LABEL } from '@/lib/model/ids'
 import { plainMasked } from '@/lib/model/mask-token'
 import type { AuthResult, State } from '@/lib/model/state'
@@ -164,6 +165,15 @@ export function stepCursor(n: number, i: number, d: 1 | -1): number | null {
   return next < 0 || next >= n ? null : next
 }
 
+const UNDO_REASON = 'Undone from the queue (u)'
+
+/** u: the Revert form for the viewer's last live act or batch, its reason filled in. A key that writes opens a dialog
+ *  (rule 13): a revert cannot itself be reverted (authorize.ts), so it could leave no Undo. null: nothing of theirs is live. */
+export function undoRequest(acts: Act[], viewerId: string): OpenActRequest | null {
+  const target = lastUndoTarget(acts, viewerId)
+  return target ? { type: 'revert', target, prefill: { reason: UNDO_REASON } } : null
+}
+
 export function QueueScreen() {
   const ws = useWorkspace()
   const { model, state, viewer, lastSeenSeq } = ws
@@ -179,6 +189,7 @@ export function QueueScreen() {
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState(params.get('q') ?? '')
   const search = useRef<HTMLInputElement>(null)
+  const worklist = useRef<HTMLElement>(null)
   // The ?c a close started on, and the claim the drawer was last pointed at (canClose in claim-drawer.tsx).
   const closing = useRef<string | null>(null)
   const shownRef = useRef<string | null>(params.get('c'))
@@ -322,23 +333,23 @@ export function QueueScreen() {
     if (level) await postAllowed(acceptInputs(model, state, t.claims, level), `Accepted (${t.label})`)
   }
 
-  async function undo() {
-    const target = lastUndoTarget(state.acts, viewer.id)
-    if (!target) {
+  function undo() {
+    const req = undoRequest(state.acts, viewer.id)
+    if (!req) {
       toast('Nothing of yours to undo')
       return
     }
-    const input: ActInput = { type: 'revert', target, body: { reason: 'Undone from the queue (u)' } }
+    const input: ActInput = { type: 'revert', target: req.target, body: { reason: UNDO_REASON } }
     const { allowed, none } = postText([{ input, auth: ws.can(input) }], 'Undone')
     if (!allowed.length) toast.error('Undo refused', { description: none })
-    else await ws.post([input], { undoLabel: `Undone: ${target}` })
+    else openAct(req)
   }
 
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return
     const el = e.target instanceof Element ? e.target : null
-    // A focused Select trigger takes typeahead ("k" picks "K-1s & basis"), so its keys are not shortcuts.
-    if (isTypingTarget(el) || inOverlay(el) || takesTypeahead(el)) return
+    // Only inside the worklist or the drawer, never in a field, on a Select trigger or in an overlay (rule 13, keys.ts).
+    if (!takesQueueKeys(el)) return
     const row = cursorRow
     // A focused button or link activates itself on Enter; Shift+Enter opens the full Trace page.
     if (e.key === 'Enter' && !e.shiftKey && el?.closest('button, a, summary')) return
@@ -350,7 +361,7 @@ export function QueueScreen() {
       j: () => move(1),
       k: () => move(-1),
       '/': () => search.current?.focus(),
-      u: () => void undo(),
+      u: undo,
       Enter: row ? () => (e.shiftKey ? openFull(row) : select(row)) : undefined,
       x: target ? () => togglePick(target) : undefined,
       a: target ? () => actOn('adjust', target) : undefined,
@@ -360,6 +371,10 @@ export function QueueScreen() {
     const run = keys[e.key]
     if (!run) return
     e.preventDefault()
+    // Pressed on the section itself (a focus return, search Esc, a click on its text): start from the cursor row. A dialog a
+    // key opens gives focus back to what had it, and Base UI turns a tabIndex -1 element into its first tabbable child, the
+    // search box, where the next letter would type.
+    if (el === worklist.current && row) document.querySelector<HTMLElement>(`[data-row="${CSS.escape(row.key)}"]`)?.focus({ preventScroll: true })
     run()
   })
   useEffect(() => {
@@ -379,8 +394,17 @@ export function QueueScreen() {
       {/* Room for the open drawer (lg:w-[min(36rem,45vw)] in claim-drawer.tsx). From xl the section pads by its width, so it
           covers nothing. From lg to xl it overlays the right of the list, whose rows stay reachable by scrolling and j / k,
           while the controls (the toolbar, the bulk bar, the explanations row and each tied block) pad by it (ROOM), so
-          none sits under it (spec §2, as amended). */}
-      <section aria-label="Queue" className={cn('flex min-w-0 flex-col gap-3 p-3', selected && 'xl:pr-[min(36rem,45vw)]')}>
+          none sits under it (spec §2, as amended). The section is the worklist: it owns the single keys (takesQueueKeys).
+          It is also the focus return (act-host.tsx returnFocusTo) for an act that a key opens from a row when the act then
+          moves or removes that row. It outlives every row. */}
+      <section
+        ref={worklist}
+        aria-label="Queue"
+        data-worklist=""
+        data-focus-return
+        tabIndex={-1}
+        className={cn('flex min-w-0 flex-col gap-3 p-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring', selected && 'xl:pr-[min(36rem,45vw)]')}
+      >
         {/* The page's one h1 (the top bar's title is a link). sr-only is absolutely positioned, so the column's gap is unchanged. */}
         <h1 className="sr-only">Queue</h1>
         <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-2', selected && ROOM)}>
@@ -399,7 +423,9 @@ export function QueueScreen() {
                 setQ(e.target.value)
                 setParams({ q: e.target.value || null })
               }}
-              onKeyDown={(e) => e.key === 'Escape' && e.currentTarget.blur()}
+              // Esc leaves the field for the worklist, where the keys run (rule 13), not for <body>; the next key starts from
+              // the cursor row (onKey). worklist.current is read in a handler, which the React Compiler allows.
+              onKeyDown={(e) => e.key === 'Escape' && worklist.current?.focus({ preventScroll: true })}
             />
           </div>
           <Select items={AREA_OPTIONS} value={filters.area ?? ''} onValueChange={(v) => setParams({ area: v || null })}>

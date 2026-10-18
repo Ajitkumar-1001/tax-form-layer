@@ -1,7 +1,7 @@
 // The single-key shortcut guards. Node has no DOM, so the elements are stubs: a tag, attributes and a parent, with
 // closest/matches for what keys.ts asks (comma lists of tag names, [attr] and [attr="value"]).
 import { describe, expect, it } from 'vitest'
-import { type ElLike, inOverlay, isTypingTarget, takesTypeahead } from '@/components/shell/keys'
+import { type ElLike, inOverlay, isTypingTarget, takesQueueKeys, takesTypeahead } from '@/components/shell/keys'
 
 type Stub = NonNullable<ElLike>
 
@@ -85,5 +85,48 @@ describe('takesTypeahead', () => {
     expect(isTypingTarget(trigger)).toBe(false)
     expect(isTypingTarget(el('span', {}, trigger))).toBe(false)
     expect(inOverlay(trigger)).toBe(false)
+  })
+})
+
+// Rule 13 (WCAG 2.1.4): the queue's single keys run only while focus is in the worklist (the screen's section) or the
+// claim drawer. A bare u from a rail link, the top bar's ? or <body> used to post a revert.
+describe('takesQueueKeys', () => {
+  const body = el('body')
+  const main = el('main', {}, body)
+  const list = el('section', { 'data-worklist': '' }, main)
+  const li = el('li', {}, el('ul', {}, el('details', {}, list)))
+
+  it("takesQueueKeys: the queue's keys run only inside the worklist or the drawer", () => {
+    const outside: [string, ElLike][] = [
+      ['rail link', el('a', {}, el('nav', {}, el('aside', {}, body)))],
+      ['top-bar ?', el('button', {}, el('header', {}, body))],
+      ['toast', el('button', {}, el('li', {}, el('ol', {}, el('section', {}, body))))],
+      ['main', main],
+      ['body', body],
+      ['null', null],
+    ]
+    const standAside: [string, ElLike][] = [
+      ['search', el('input', {}, list)],
+      ['bulk select', el('select', {}, el('form', {}, list))],
+      ['editable', el('span', {}, el('div', { contenteditable: 'true' }, list))],
+      ['area trigger', el('button', { role: 'combobox' }, list)],
+      ['act-form textarea', el('textarea', {}, el('div', { role: 'dialog' }, body))],
+      ['act-form Cancel', el('button', {}, el('div', { role: 'dialog' }, body))],
+      ['option in a drawer listbox', el('div', { role: 'option' }, el('div', { role: 'listbox' }, drawer))],
+      ['drawer field', el('input', {}, drawer)],
+      ['drawer Select trigger', el('button', { role: 'combobox' }, drawer)],
+    ]
+    const inside: [string, ElLike][] = [
+      ['row', el('button', { 'data-row': 'contradicted:F8949.B.N1' }, li)],
+      ['row checkbox', el('span', { role: 'checkbox' }, li)],
+      ['group header', el('summary', {}, el('details', {}, list))],
+      ['Assigned to me', el('span', { role: 'switch' }, list)],
+      ['list itself', list],
+      ['drawer title', el('h2', {}, drawer)],
+      ['drawer itself', drawer],
+      ['drawer button', el('button', {}, drawer)],
+    ]
+    for (const [name, x] of [...outside, ...standAside]) expect(takesQueueKeys(x), name).toBe(false)
+    for (const [name, x] of inside) expect(takesQueueKeys(x), name).toBe(true)
   })
 })

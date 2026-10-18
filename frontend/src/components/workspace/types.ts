@@ -12,8 +12,11 @@ export interface Workspace {
   identities: Viewer[]
   engagement: string
   packetSha: string
-  /** Append acts (one batch, all-or-nothing). Shows a toast with Undo on success, the server's reason on refusal. */
-  post(acts: ActInput[], opts?: { quiet?: boolean; undoLabel?: string }): Promise<PostResult>
+  /**
+   * Append acts (one batch, all-or-nothing). Shows a toast with Undo on success, the server's reason on refusal.
+   * `quiet` drops both toasts; `quietRefusal` drops only the refusal one, for a form that prints the reason itself.
+   */
+  post(acts: ActInput[], opts?: { quiet?: boolean; quietRefusal?: boolean; undoLabel?: string }): Promise<PostResult>
   /** Same rules the server enforces, for disabling buttons and explaining why. */
   can(input: ActInput): AuthResult
   /** Ask the server for a masked value. The server logs the view (or the refusal) before answering. */

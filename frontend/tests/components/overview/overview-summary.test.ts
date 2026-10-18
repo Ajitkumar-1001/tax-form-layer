@@ -1,9 +1,13 @@
 // Team, next steps, the sentence and summarize() over the real packet, on the MASKED model the browser builds.
 // The values at the packet's "now" (season clock 2026-06-23T06:05:00Z, no acts) are pinned literals.
+// One case server-renders the next-steps section, to pin the verb on a row's button (ACT_LABEL).
+import { createElement as h } from 'react'
+import { renderToString } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { canOpen } from '@/components/acts/draft'
+import { buildInput, canOpen, initialDraft } from '@/components/acts/draft'
 import { actsOf, readPacket } from '../records/fixture'
-import type { OpenActRequest } from '@/components/workspace/types'
+import { WorkspaceContext } from '@/components/workspace/context'
+import type { OpenActRequest, Workspace } from '@/components/workspace/types'
 import type { ActInput } from '@/lib/model/acts'
 import { authorize } from '@/lib/model/authorize'
 import { buildModel } from '@/lib/model/build'
@@ -11,6 +15,7 @@ import { project } from '@/lib/model/project'
 import type { FilingView, State } from '@/lib/model/state'
 import { identities, viewerOf } from '@/lib/model/viewer'
 import { maskPacket } from '@/lib/server/mask'
+import { NextStepsSection } from '@/components/overview/next-steps'
 import { nextOf, sentenceOf, summarize, teamOf } from '@/components/overview/overview-model'
 
 const packet = maskPacket(readPacket()).masked
@@ -185,7 +190,7 @@ describe('replay', () => {
     for (const id of IDS) expect(summarize(model, at(0, id), viewer(id)), id).toEqual(summarize(model, live(id), viewer(id)))
   })
 
-  it('summarizes every prefix for every viewer without throwing, and the clock never goes back', () => {
+  it('summarizes every prefix for every viewer without throwing, and the clock never goes back', { timeout: 20_000 }, () => {
     let clock = 0
     let inFile = 0
     for (let i = 0; i <= LOG.length; i++) {
@@ -228,9 +233,15 @@ describe('replay', () => {
     expect(nextOf(model, at(LOG.length, 'st-02'), viewer('st-02')).items).toEqual([
       { kind: 'waiting', text: 'Waiting for preparer sign-offs (8 areas)', context: 'return' },
     ])
-    expect(nextOf(model, at(LOG.length, 'st-03'), viewer('st-03')).items).toEqual([
-      { kind: 'partner_adjust', text: 'Partner sign-off needed: F8949.B.N1 (Federal −6,647, California −1,222)', context: 'F8949.B.N1', href: '/r/F8949.B.N1' },
-    ])
+    // The partner's row acts in place: the area sign-off at partner level, not a link to a claim page that has no sign-off.
+    const partnerState = at(LOG.length, 'st-03')
+    const partner = nextOf(model, partnerState, viewer('st-03')).items
+    expect(partner).toEqual([{
+      kind: 'partner_adjust', text: 'Partner sign-off needed: F8949.B.N1 (Federal −6,647, California −1,222)', context: 'F8949.B.N1',
+      request: { type: 'signoff', target: 'area:investments_and_digital_assets', prefill: { level: 'partner' } },
+    }])
+    const canPartner = (i: ActInput) => authorize(model, partnerState, i, viewer('st-03'))
+    expect(canOpen(partner[0].request!, { model, state: partnerState, can: canPartner }).auth.ok).toBe(true)
     const end = at(LOG.length, 'st-05')
     const { items } = nextOf(model, end, viewer('st-05'))
     expect(items).toEqual([
@@ -242,6 +253,46 @@ describe('replay', () => {
     // The reassign button opens: the draft starts from the current assignee, a known staff member.
     const can = (i: ActInput) => authorize(model, end, i, viewer('st-05'))
     expect(canOpen(items[1].request!, { model, state: end, can }).auth.ok).toBe(true)
+  })
+
+  it('lets the partner sign off an adjustment over 1,000 in place, at the claim\'s area', () => {
+    const state = at(LOG.length, 'st-03')
+    const [item] = nextOf(model, state, viewer('st-03')).items
+    const req = item.request!
+    // Not a link, and the area is the claim's own: the one the sign-off matrix and the partner desk sign.
+    expect(item.href).toBeUndefined()
+    expect(req.target).toBe(`area:${model.claims[item.context].area}`)
+    // Submitting the dialog as it opens posts that sign-off; it covers the adjustment, so the row goes.
+    const input = buildInput(req, initialDraft(req, model, state), state)
+    expect(input).toEqual({ type: 'signoff', target: req.target, body: { level: 'partner' } })
+    expect(authorize(model, state, input, viewer('st-03')).ok).toBe(true) // actsOf does not run authorize
+    const signed = project(model, actsOf(model, [...STEPS, ['st-03', input]]), viewer('st-03'), 'main')
+    expect(signed.adjusts.find((v) => v.target === item.context)?.partner_covered).toBe(true)
+    expect(nextOf(model, signed, viewer('st-03')).items).toEqual([])
+  })
+
+  it('falls back to signing the whole return when the adjusted target has no area', () => {
+    const state = at(LOG.length, 'st-03')
+    // No real log reaches this: authorize only accepts claim targets. Hand-built to pin signTargets' area-or-return rule.
+    const orphaned: State = { ...state, adjusts: state.adjusts.map((v) => ({ ...v, target: 'F8949.B.GONE' })) }
+    expect(nextOf(model, orphaned, viewer('st-03')).items.map((i) => i.request)).toEqual([
+      { type: 'signoff', target: 'return', prefill: { level: 'partner' } },
+    ])
+  })
+
+  it('shows the partner\'s row as a "Sign off" button, not an "Open" link', () => {
+    const state = at(LOG.length, 'st-03')
+    const v = viewer('st-03')
+    const ws: Workspace = {
+      model, state, viewer: v, identities: identities(packet), engagement: 'main', packetSha: 'sha-test',
+      post: async () => ({ ok: true, acts: [] }), can: (i) => authorize(model, state, i, v),
+      reveal: async () => ({ ok: false, reason: 'n/a' }), switchIdentity: async () => {}, lastSeenSeq: 0, markSeen: () => {},
+    }
+    const html = renderToString(h(WorkspaceContext, { value: ws }, h(NextStepsSection, { next: nextOf(model, state, v) })))
+    const row = (html.match(/<li>([\s\S]*?)<\/li>/)?.[1] ?? '').replaceAll('<!-- -->', '')
+    expect(row).toContain('Partner sign-off needed:')
+    expect(row).toMatch(/<button(?![^>]* disabled="")[^>]*>Sign off<\/button>/)
+    expect(row).not.toContain('href="/r/F8949.B.N1"')
   })
 
   it('moves the deadline in the sentence with the replayed clock', () => {

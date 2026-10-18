@@ -65,6 +65,9 @@ const PacketOutlineZ = z.object({
 })
 
 export const TIMEOUT_MS = 10_000
+// Shown when fetch itself rejects (the browser's own words are "Failed to fetch"). It must not say that nothing changed: a POST
+// may have landed before the connection dropped (the provider's post() and reveal() re-poll to show what did).
+export const UNREACHABLE = 'Could not reach the server; check your connection and try again.'
 
 // API calls time out, so a hung request cannot keep an act form busy (post() awaits the follow-up poll).
 // The sha-pinned packet (2 MB, HTTP-cached) is exempt: on a slow link it may need longer.
@@ -77,7 +80,7 @@ async function call(url: string, init?: { method: 'POST'; body: unknown }, cache
     signal: cache === 'no-store' ? AbortSignal.timeout(TIMEOUT_MS) : undefined,
   }).catch((e: unknown) => {
     if (e instanceof DOMException && e.name === 'TimeoutError') throw new ApiError(0, `No answer from ${url.split('?')[0]} after ${TIMEOUT_MS / 1000} s`)
-    throw e
+    throw new ApiError(0, UNREACHABLE)
   })
   const json: unknown = await res.json().catch(() => null)
   if (!res.ok) {

@@ -419,14 +419,14 @@ export function nextAction(model: Model, state: State, viewer: Viewer): NextActi
   const mine = myAreas(state, viewer)
   const v3At = model.packet.return_versions[model.packet.return_versions.length - 1].computed_at
 
-  // 1. Blocking review notes on my work, then questions addressed to me.
+  // 1. Blocking review notes on my work, then questions addressed to me. One whose latest word is my own reply waits for its author.
   const myWork = (target: string) => {
     const c = claimOf(model, target)
     const area = areaOfRef(model, target)
     return (!!c && state.claims[c]?.preparedBy.includes(viewer.id)) || (!!area && mine.has(area) && viewer.role === 'preparer')
   }
   const notes = state.notes
-    .filter((n) => n.open && ((n.blocking && n.kind === 'review_note' && n.actor !== viewer.id && myWork(n.target)) || (n.kind.startsWith('question') && n.to === viewer.id)))
+    .filter((n) => n.open && n.replies.at(-1)?.actor !== viewer.id && ((n.blocking && n.kind === 'review_note' && n.actor !== viewer.id && myWork(n.target)) || (n.kind.startsWith('question') && n.to === viewer.id)))
     .sort((a, b) => Number(b.blocking) - Number(a.blocking) || a.seq - b.seq)
   if (notes[0]) {
     const n = notes[0]
@@ -458,9 +458,22 @@ export function nextAction(model: Model, state: State, viewer: Viewer): NextActi
   const open = openFindings(model, state)
   const { hidden } = collapseToRoots(model, open)
   const inMine = open.filter((f) => !hidden.has(f.id) && !!f.claims[0] && mine.has(model.claims[f.claims[0]].area))
-  const fromFinding = (f: Finding, kind: NextAction['kind']): NextAction => ({
-    kind, what: f.title, why: f.why, doneWhen: doneWhen(f), ref: f.claims[0] ?? f.id, request: fixToRequest(f), finding: f.id,
-  })
+  const fromFinding = (f: Finding, kind: NextAction['kind']): NextAction => {
+    const line = f.claims[0]
+    const request = fixToRequest(f)
+    // A line stays open while any non-info finding on it is open (project.ts reads the same openFindings), so clearing this one
+    // may not move the counts. openFindings lists a finding under every claim it names, not only its first. A dispose or decide
+    // also clears every finding whose primary claim is its target (project.ts:210): those leave with this one.
+    const swept = (id: string) => (request.type === 'dispose' || request.type === 'decide') && model.findingsById[id]?.claims[0] === request.target
+    const others = line ? (state.claims[line]?.openFindings ?? []).filter((id) => id !== f.id && model.findingsById[id]?.severity !== 'info' && !swept(id)).length : 0
+    const done = doneWhen(f)
+    // Rule 7: a line is named by its key; any other claim (a document, a client answer) by its label.
+    const name = model.claims[line]?.kind === 'line' ? line : (model.claims[line]?.label ?? line)
+    return {
+      kind, what: f.title, why: f.why, doneWhen: others ? `${done} ${others} more open ${others === 1 ? 'finding keeps' : 'findings keep'} ${name} open.` : done,
+      ref: line ?? f.id, request, finding: f.id,
+    }
+  }
 
   // 3. The largest-money finding in my areas. Process items are partner work and swings come later.
   const money = inMine.filter((f) => f.family !== 'process_control' && f.family !== 'prior_year_swing' && f.severity !== 'info' && big(absStake(f)) > 0)

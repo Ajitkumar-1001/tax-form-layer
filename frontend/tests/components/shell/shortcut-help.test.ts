@@ -53,6 +53,11 @@ describe('SHORTCUTS', () => {
       expect(new Set(s.items.map((i) => i.label)).size).toBe(s.items.length)
     }
   })
+
+  // u opens the Revert form instead of posting (rule 13), so the list says it asks first.
+  it('says that u asks first', () => {
+    expect(SHORTCUTS.find((s) => s.section === 'Queue')!.items.find((i) => i.keys.includes('u'))!.label).toBe('Revert your last act (asks first)')
+  })
 })
 
 describe('shouldOpenShortcuts', () => {

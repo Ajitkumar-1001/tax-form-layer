@@ -25,6 +25,11 @@ export function formatMoney(value: number | null | undefined, signed = false): s
   return signed ? `+${abs}` : abs
 }
 
+/** A balance in the client's words, never signed: 4220 → "$4,220" + "you owe", -8256 → "$8,256" + "refund to you". */
+export function balanceWords(owe: number): { amount: string; words: 'you owe' | 'refund to you' } {
+  return { amount: `$${formatMoney(Math.abs(owe))}`, words: owe >= 0 ? 'you owe' : 'refund to you' }
+}
+
 /** "Ama Okafor-Lindqvist" → "AO": the first letters of the first two words, for avatars. */
 export function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase()

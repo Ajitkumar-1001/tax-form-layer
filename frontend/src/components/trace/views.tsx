@@ -1,10 +1,13 @@
 'use client'
 // Trace views for refs that are not claims: a read, a page, a finding, an act, a required entry,
-// a packet record, an area, a batch, or nothing at all.
+// a packet record, an area, a batch, or nothing at all. Plus a note's thread, which a claim shows too.
+import { useId } from 'react'
 import Link from 'next/link'
 import { ActButton } from '@/components/acts/act-host'
+import { canOpen, NOTE_KIND_LABEL } from '@/components/acts/draft'
 import { MaskedText } from '@/components/atoms/masked-text'
 import { RefLink } from '@/components/atoms/ref-link'
+import { FlagChips } from '@/components/atoms/status'
 import { DocPage } from '@/components/doc/doc-page'
 import { useWorkspace } from '@/components/workspace/context'
 import type { Finding } from '@/lib/model/checks/types'
@@ -12,6 +15,8 @@ import type { Val } from '@/lib/model/claims'
 import { AREA_LABEL, type AreaKey } from '@/lib/model/ids'
 import type { ExtractedValue, PacketDocument } from '@/lib/model/packet-types'
 import { indexActs } from '@/lib/model/project'
+import type { NoteView } from '@/lib/model/state'
+import { cn } from '@/lib/utils'
 import { Attachments, EvidenceRefs } from './evidence'
 import { FindingCard, FindingsList } from './findings'
 import { ActionBar, TraceTitle } from './header'
@@ -107,20 +112,7 @@ export function ActView({ refId, seq, compact }: { refId: string; seq: number; c
       <ul><ActRow {...row} /></ul>
       {note && (
         <Section title={note.open ? 'Open note' : 'Resolved note'} focusReturn>
-          <p className="text-sm"><MaskedText text={note.text} context={refId} /></p>
-          {note.replies.map((r) => (
-            <div key={r.seq} className="rounded-md bg-muted/60 p-2 text-sm">
-              <p className="text-xs text-muted-foreground">{who(r.actor)} · <RefLink to={`act:${r.seq}`}>#{r.seq}</RefLink></p>
-              <p><MaskedText text={r.text} context={refId} /></p>
-            </div>
-          ))}
-          {note.resolved && <p className="text-sm text-muted-foreground">Resolved ({note.resolved.resolution}) by {who(note.resolved.actor)}: <MaskedText text={note.resolved.text} context={refId} /></p>}
-          {note.open && (
-            <div className="flex gap-1.5">
-              <ActButton type="reply" target={refId} size="sm" variant="outline">Reply</ActButton>
-              <ActButton type="resolve" target={refId} size="sm" variant="outline">Resolve</ActButton>
-            </div>
-          )}
+          <NoteThread note={note} />
         </Section>
       )}
       <Section title="Cites">
@@ -140,6 +132,67 @@ export function ActView({ refId, seq, compact }: { refId: string; seq: number; c
       )}
       <History refs={[refId]} compact={compact} />
     </>
+  )
+}
+
+const NOTE_ACTS = [
+  { type: 'reply', label: 'Reply' },
+  { type: 'resolve', label: 'Resolve' },
+] as const
+
+/**
+ * A note in full: its text, replies and resolution, and Reply and Resolve while it is open. A refused one stays in the Tab
+ * order, described by its authorize() reason, which prints once under the pair (as ActionBar's do). Each button names its note
+ * after the word it shows (sr-only), since a claim's open notes put pairs side by side. `byline` names the kind,
+ * who wrote it to whom and its act, for a list of notes (the claim's Open notes). Never a focus return itself: resolving
+ * unmounts it and closest() takes the nearest marker, so the container it sits in is the one (ActView's section, ClaimView's).
+ */
+export function NoteThread({ note, byline = false }: { note: NoteView; byline?: boolean }) {
+  const ws = useWorkspace()
+  const who = useWho()
+  const id = useId()
+  const ref = `act:${note.seq}`
+  const acts = NOTE_ACTS.map((a) => ({ ...a, auth: canOpen({ type: a.type, target: ref }, ws).auth }))
+  const reasons = [...new Set(acts.flatMap(({ auth }) => (auth.ok ? [] : [auth.reason])))]
+  return (
+    <div className={cn('flex min-w-0 flex-col gap-2', byline && 'rounded-md border p-3')}>
+      {byline && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span>{NOTE_KIND_LABEL[note.kind]} by {who(note.actor)}{note.to && <> to {who(note.to)}</>}</span>
+          {note.blocking && note.kind === 'review_note' && <FlagChips flags={['blocks_filing']} />}
+          <RefLink to={ref}>#{note.seq}</RefLink>
+        </p>
+      )}
+      <p className="text-sm"><MaskedText text={note.text} context={ref} /></p>
+      {note.replies.map((r) => (
+        <div key={r.seq} className="rounded-md bg-muted/60 p-2 text-sm">
+          <p className="text-xs text-muted-foreground">{who(r.actor)} · <RefLink to={`act:${r.seq}`}>#{r.seq}</RefLink></p>
+          <p><MaskedText text={r.text} context={ref} /></p>
+        </div>
+      ))}
+      {note.resolved && <p className="text-sm text-muted-foreground">Resolved ({note.resolved.resolution}) by {who(note.resolved.actor)}: <MaskedText text={note.resolved.text} context={ref} /></p>}
+      {note.open && (
+        <div className="flex flex-col gap-1">
+          <div className="flex gap-1.5">
+            {acts.map(({ type, label, auth }) => (
+              <ActButton key={type} type={type} target={ref} size="sm" variant="outline" reasonId={auth.ok ? undefined : `${id}-${reasons.indexOf(auth.reason)}`}>
+                {label}
+                <span className="sr-only">{` ${who(note.actor)}'s note #${note.seq}`}</span>
+              </ActButton>
+            ))}
+          </div>
+          {reasons.length > 0 && (
+            <ul className="text-xs text-muted-foreground">
+              {reasons.map((r, i) => (
+                <li key={r} id={`${id}-${i}`} data-refusal>
+                  <MaskedText text={r} context={ref} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

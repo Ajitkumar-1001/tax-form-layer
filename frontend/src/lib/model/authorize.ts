@@ -63,7 +63,7 @@ export function authorize(model: Model, state: State, input: ActInput, actor: Vi
       if (accept && cs.openFindings.length) return no(`${t} has open findings; resolve them before accepting.`)
       const frozen = frozenFor(model, state, t)
       if (frozen) return no(frozen)
-      if (!sameValue(seen_value, cs.effective)) return no(`${t} is now ${show(cs.effective)}, not ${show(seen_value)}. Reload and verify again.`)
+      if (!sameValue(seen_value, cs.effective)) return no(`${t} changed to ${show(cs.effective)} since you saw ${show(seen_value)}. Check the new value, then verify it.`)
       const bad = findingsRefusal(model, state, input, actor)
       if (bad) return no(bad)
       return level === 'preparer' ? ok : selfReview(model, state, [t], actor)

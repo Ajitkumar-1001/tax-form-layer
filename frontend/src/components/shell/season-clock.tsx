@@ -70,7 +70,7 @@ export function SeasonClock({ className }: { className?: string }) {
 
   return (
     <div className={cn('flex min-w-0', className)}>
-      {/* One rounded chip: the time, the season so far (xl up), then the next event (a button), a hairline before it. */}
+      {/* One rounded chip: the time, the season so far (xl up), then the next event (a button for who may move the clock, else text), a hairline before it. */}
       <div className="flex h-8 w-full min-w-0 items-center overflow-hidden rounded-full bg-muted text-xs ring-1 ring-inset ring-foreground/10 sm:w-fit xl:w-full">
         <span data-tour="season-time" className="flex h-full shrink-0 items-center gap-1.5 px-3 text-foreground" title="Season clock (UTC). It only moves forward, through clock acts.">
           <ClockIcon className="size-3.5 text-foreground/60" />
@@ -78,37 +78,42 @@ export function SeasonClock({ className }: { className?: string }) {
         </span>
         <SeasonTrack className="hidden xl:flex" />
         {next && input && auth && (
-          // The title sits on a wrapper: a disabled button gets no pointer events, so it cannot carry the reason.
+          // The title is the mouse's tooltip; a viewer who may not move the clock also gets the reason as sr-only text.
           <span title={auth.ok ? `Move the season clock to ${formatClock(next.at)}` : auth.reason} className="flex h-full min-w-0 flex-1 sm:flex-none">
             <span aria-hidden className="my-2 w-px shrink-0 bg-foreground/20" />
-            <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger
-                disabled={!auth.ok}
-                className="group/next flex h-full w-full min-w-0 cursor-pointer items-center justify-between gap-1 px-3 text-foreground outline-none transition-colors duration-200 hover:bg-foreground/[0.08] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-foreground disabled:pointer-events-none motion-reduce:transition-none sm:justify-start"
-              >
-                {/* Not allowed to move the clock: the label stays at full strength (it is information), only the arrow goes. */}
+            {auth.ok ? (
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger className="group/next flex h-full w-full min-w-0 cursor-pointer items-center justify-between gap-1 px-3 text-foreground outline-none transition-colors duration-200 hover:bg-foreground/[0.08] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-foreground motion-reduce:transition-none sm:justify-start">
+                  <span className="truncate sm:max-w-64 lg:max-w-36 xl:max-w-64">
+                    <span className="text-foreground/65">Next:</span> {next.label}
+                  </span>
+                  <ChevronRightIcon className="size-3.5 shrink-0 text-foreground/60 transition-transform duration-200 group-hover/next:translate-x-0.5 motion-reduce:transition-none" />
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 rounded-2xl bg-popover/90 backdrop-blur-xl">
+                  <PopoverHeader>
+                    <PopoverTitle>Move the season clock?</PopoverTitle>
+                    <PopoverDescription>
+                      To {formatClock(next.at)}: {next.label}. Everyone on this engagement sees the new time, and the clock cannot move back.
+                    </PopoverDescription>
+                  </PopoverHeader>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={move}>
+                      Move clock
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              // Not allowed to move the clock: the next event is information, so plain text at full strength. No control that only says no.
+              <span className="flex h-full min-w-0 items-center px-3 text-foreground">
                 <span className="truncate sm:max-w-64 lg:max-w-36 xl:max-w-64">
                   <span className="text-foreground/65">Next:</span> {next.label}
                 </span>
-                <ChevronRightIcon className="size-3.5 shrink-0 text-foreground/60 transition-transform duration-200 group-hover/next:translate-x-0.5 group-disabled/next:hidden motion-reduce:transition-none" />
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-80 rounded-2xl bg-popover/90 backdrop-blur-xl">
-                <PopoverHeader>
-                  <PopoverTitle>Move the season clock?</PopoverTitle>
-                  <PopoverDescription>
-                    To {formatClock(next.at)}: {next.label}. Everyone on this engagement sees the new time, and the clock cannot move back.
-                  </PopoverDescription>
-                </PopoverHeader>
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={move}>
-                    Move clock
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
+              </span>
+            )}
             {!auth.ok && <span className="sr-only">{auth.reason}</span>}
           </span>
         )}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { resolveRef } from '@/components/trace/resolve'
-import type { Act } from '@/lib/model/acts'
+import type { Act, ActInput } from '@/lib/model/acts'
 import { ActInputZ } from '@/lib/model/acts'
 import { project } from '@/lib/model/project'
 import { clockAt, diffSides, sideOptions, sideValues, sinceMe } from '@/components/records/compare'
@@ -70,6 +70,64 @@ describe('compare', () => {
   it('now equals v3 with no acts, and an unknown side is null', () => {
     expect(diffSides(model, state, 'v3', 'now', nameOf)).toEqual([])
     expect(sideValues(model, state, 'nope')).toBeNull()
+  })
+  it('lists a live basis adjust under now with its field and attribution', () => {
+    const log = actsOf(model, [['st-01', { type: 'adjust', target: 'F8949.B.N1', body: { field: 'basis', to: 19100, reason: 'D11 supplement', evidence: ['D11'] } }]])
+    const s = project(model, log, state.viewer)
+    const { seq } = log[0]
+    const row = (a: string, b: string) => diffSides(model, s, a, b, nameOf)?.find((r) => r.key === 'F8949.B.N1')
+    expect(row('v3', 'now')).toMatchObject({ field: 'basis', a: 0, b: 19100, delta: 19100, by: [{ text: `adjust #${seq} by st-01`, ref: `act:${seq}`, detail: 'D11 supplement' }] })
+    expect(row('now', 'v3')).toMatchObject({ field: 'basis', a: 19100, b: 0, delta: -19100 })
+  })
+  it('attributes a value row to its own adjust, not a later basis adjust on the same line', () => {
+    const log = actsOf(model, [
+      ['st-01', { type: 'adjust', target: 'F8949.B.N1', body: { field: 'value', to: 19000, reason: 'Proceeds per the broker', evidence: ['D11'] } }],
+      ['st-01', { type: 'adjust', target: 'F8949.B.N1', body: { field: 'basis', to: 19100, reason: 'D11 supplement', evidence: ['D11'] } }],
+    ])
+    const rows = diffSides(model, project(model, log, state.viewer), 'v3', 'now', nameOf) ?? []
+    expect(rows.find((r) => r.key === 'F8949.B.N1' && !r.field)?.by).toEqual([{ text: `adjust #${log[0].seq} by st-01`, ref: `act:${log[0].seq}`, detail: 'Proceeds per the broker' }])
+  })
+
+  // Basis adjusts on F8949.B.N1 (basis 0 as read). Stacked ones chain: each one's from is the last live to (derive.ts).
+  const basis = (to: number, reason: string): [string, ActInput] => ['st-01', { type: 'adjust', target: 'F8949.B.N1', body: { field: 'basis', to, reason, evidence: ['D11'] } }]
+  const undo = (seq: number): [string, ActInput] => ['st-01', { type: 'revert', target: `act:${seq}`, body: { reason: 'Basis was for the wrong lot' } }]
+  const lot = (s: typeof state, a: string, b: string) => diffSides(model, s, a, b, nameOf)?.filter((r) => r.key === 'F8949.B.N1')
+  const live = project(model, actsOf(model, [basis(19100, 'D11 supplement')]), state.viewer)
+  it('stacked basis adjusts span the whole chain', () => {
+    const log = actsOf(model, [basis(10000, 'Basis per the broker'), basis(19100, 'D11 supplement')])
+    const s = project(model, log, state.viewer)
+    const [one, two] = log
+    expect(lot(s, 'v3', 'now')).toMatchObject([{ field: 'basis', a: 0, b: 19100, delta: 19100, by: [
+      { text: `adjust #${one.seq} by st-01`, ref: `act:${one.seq}`, detail: 'Basis per the broker' },
+      { text: `adjust #${two.seq} by st-01`, ref: `act:${two.seq}`, detail: 'D11 supplement' },
+    ] }])
+    expect(lot(s, 'now', 'v3')).toMatchObject([{ field: 'basis', a: 19100, b: 0, delta: -19100 }])
+  })
+  it('a chain that nets to zero leaves no row', () => {
+    const s = project(model, actsOf(model, [basis(19100, 'D11 supplement'), basis(0, 'D11 was for another lot')]), state.viewer)
+    expect(diffSides(model, s, 'v3', 'now', nameOf)?.some((r) => r.key === 'F8949.B.N1')).toBe(false)
+  })
+  it('after the later of two stacked basis adjusts is reverted, the row spans only the earlier', () => {
+    const steps = [basis(10000, 'Basis per the broker'), basis(19100, 'D11 supplement')]
+    const log = actsOf(model, steps)
+    // The later one: authorize() refuses to revert an earlier adjust while a later one of its field is live (actsOf skips authorize).
+    const s = project(model, actsOf(model, [...steps, undo(log[1].seq)]), state.viewer)
+    expect(lot(s, 'v3', 'now')).toMatchObject([{ field: 'basis', a: 0, b: 10000, delta: 10000, by: [{ ref: `act:${log[0].seq}` }] }])
+  })
+  it('adds no basis or label row against the 2024 return, which holds no such lot', () => {
+    expect(diffSides(model, live, '2024', 'now', nameOf)?.some((r) => r.field)).toBe(false)
+    expect(diffSides(model, live, 'now', '2024', nameOf)?.some((r) => r.field)).toBe(false)
+  })
+  it('adds no basis or label row when neither side is now', () => {
+    expect(diffSides(model, live, 'v2', 'v3', nameOf)?.some((r) => r.field)).toBe(false)
+  })
+  it('now against now has no rows, even with a live basis adjust', () => {
+    expect(diffSides(model, live, 'now', 'now', nameOf)).toEqual([])
+  })
+  it('a reverted basis adjust leaves no row', () => {
+    const log = actsOf(model, [basis(19100, 'D11 supplement')])
+    const s = project(model, actsOf(model, [basis(19100, 'D11 supplement'), undo(log[0].seq)]), state.viewer)
+    expect(diffSides(model, s, 'v3', 'now', nameOf)?.some((r) => r.key === 'F8949.B.N1')).toBe(false)
   })
 })
 

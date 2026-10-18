@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { type Act, ActInputZ } from '@/lib/model/acts'
+import { type Act, type ActInput, ActInputZ } from '@/lib/model/acts'
 import { buildModel } from '@/lib/model/build'
 import { plainMasked } from '@/lib/model/mask-token'
 import type { Packet } from '@/lib/model/packet-types'
@@ -202,6 +202,64 @@ describe('next action', () => {
     expect(n.doneWhen).toMatch(/adjustment is recorded/)
   })
 
+  it('says how many other open findings keep the top line open', () => {
+    const n = nextAction(model, fresh(), who('st-01'))!
+    expect(n.doneWhen).toMatch(/adjustment is recorded/)
+    expect(n.doneWhen).toMatch(/1 more open finding keeps F8949\.B\.N1 open\.$/)
+  })
+
+  // st-01's card once every open finding that does not name `line` is cleared (one dispose lists them all), so it is about `line`.
+  const cardOn = (line: string) => {
+    const onLine = new Set(model.findingsByClaim[line])
+    const rest = openFindings(model, fresh()).filter((f) => !onLine.has(f.id)).map((f) => f.id)
+    const cleared = actsOf(model, [['st-01', { type: 'dispose', target: rest[0], body: { disposition: 'accepted_as_is', reason: 'Cleared so the card is about one line', findings: rest } }]])
+    return nextAction(model, fresh('st-01', cleared), who('st-01'))!
+  }
+
+  it('counts every non-info finding that names the line, pluralises, and adds nothing when the finding is alone', () => {
+    // CHK-07 on qa-24 names SchC.1 as its second claim, so counting only first claims would say 1; CHK-26 is the line's swing.
+    expect(cardOn('SchC.1').doneWhen).toMatch(/ 2 more open findings keep SchC\.1 open\.$/)
+    // Three others are open on D31 but CHK-18 is info, which never keeps a line open (project.ts). A document is named by
+    // its label, not its id (rule 7 exempts line keys only).
+    expect(cardOn('D31').doneWhen).toMatch(/ 2 more open findings keep Meridian Brokerage 2025 consolidated Form 1099 - CORRECTED \(joint\) open\.$/)
+    // The California wages line has only the finding being fixed: the text ends where it always did.
+    expect(cardOn('SchCA540NR.1.E').doneWhen).toMatch(/adjustment is recorded with its evidence and reason, and this finding clears\.$/)
+  })
+
+  // A swing card's decide clears every finding whose primary claim is its line (project.ts), so the count leaves those out.
+  // On the packet each such sibling has money, so rule 3 shows it first and no real log shows these cards while it is open:
+  // its stake is zeroed here to reach them. CHK-07 on qa-24 also names SchC.1, but its primary claim is qa-24, so it stays.
+  it("counts only the open findings the card's own act leaves on its line", () => {
+    const SWEPT = ['chk:CHK-19:F1040.26', 'chk:CHK-16:SchB.1.2', 'chk:CHK-07:SchC.1']
+    const findings = model.findings.map((f) => (SWEPT.includes(f.id) ? { ...f, stake: { fed: 0, ca: 0 } } : f))
+    const unstaked = { ...model, findings, findingsById: Object.fromEntries(findings.map((f) => [f.id, f])) }
+    // st-01's swing card on `line` once the rest (and `also`) is cleared, and the non-info findings open on the line after its decide.
+    const afterCard = (m: typeof model, line: string, also: string[] = []) => {
+      const onLine = new Set(m.findingsByClaim[line])
+      const rest = [...openFindings(m, project(m, [], who('st-01'))).filter((f) => !onLine.has(f.id)).map((f) => f.id), ...also]
+      const cleared: [string, ActInput] = ['st-01', { type: 'dispose', target: rest[0], body: { disposition: 'accepted_as_is', reason: 'Cleared so the card is about one line', findings: rest } }]
+      const card = nextAction(m, project(m, actsOf(m, [cleared]), who('st-01')), who('st-01'))!
+      expect(card, line).toMatchObject({ kind: 'swing', finding: `chk:CHK-26:${line}`, request: { type: 'decide', target: line } })
+      const decide: ActInput = {
+        type: 'decide', target: line,
+        body: { kind: 'swing_explained', question: 'Why did this line move from 2024?', choice: 'The client confirmed the change', alternatives: [], authority: 'Client confirmation', evidence: [], findings: [card.finding!] },
+      }
+      expect(ActInputZ.safeParse(decide).success).toBe(true)
+      const after = project(m, actsOf(m, [cleared, ['st-01', decide]]), who('st-01'))
+      return {
+        printed: Number(/ (\d+) more open findings? keeps? \S+ open\.$/.exec(card.doneWhen)?.[1] ?? 0),
+        left: after.claims[line].openFindings.filter((id) => m.findingsById[id].severity !== 'info'),
+      }
+    }
+    for (const line of ['F1040.26', 'SchB.1.2', 'SchC.1']) {
+      const { printed, left } = afterCard(unstaked, line)
+      expect(printed, line).toBe(left.length)
+    }
+    expect(afterCard(unstaked, 'SchC.1').left).toEqual(['chk:CHK-07:qa-24'])
+    // The real packet, with the line's money finding cleared first: the card counts qa-24's, which its decide leaves open.
+    expect(afterCard(model, 'SchC.1', ['chk:CHK-07:SchC.1'])).toEqual({ printed: 1, left: ['chk:CHK-07:qa-24'] })
+  })
+
   it('puts a blocking review note on my work and a question to me first', () => {
     const acts = [
       act('st-02', 'note', 'F1040.1a', { kind: 'question_staff', to: 'st-01', text: 'Which W-2 is final?', blocking: false }),
@@ -211,6 +269,29 @@ describe('next action', () => {
     expect(n.kind).toBe('note')
     expect(n.request).toEqual({ type: 'reply', target: `act:${acts[1].seq}` })
     expect(nextAction(model, fresh('st-01', acts.slice(0, 1)), who('st-01'))!.kind).toBe('question')
+  })
+
+  // A reply names its note by the seq the log gave it. These logs come from actsOf, which numbers from 1; act() shares a module-level counter.
+  const replyTo = (note: Act, actor: string, text: string): [string, ActInput] => [actor, { type: 'reply', target: `act:${note.seq}`, body: { text, attachments: [] } }]
+
+  it("stops asking for an answer once the viewer's reply is the latest word on the note", () => {
+    const note: [string, ActInput] = ['st-02', { type: 'note', target: 'F1040.1a', body: { kind: 'review_note', text: 'Tie wages to the W-2', blocking: true } }]
+    const [asked] = actsOf(model, [note])
+    const answered = actsOf(model, [note, replyTo(asked, 'st-01', 'Tied to D10 box 1')])
+    // Her reply is the latest word, so the card falls through to her top finding, the one she sees on the empty log.
+    expect(nextAction(model, fresh('st-01', answered), who('st-01'))).toMatchObject({ kind: 'finding', finding: 'chk:CHK-06:F8949.B.N1' })
+    expect(nextAction(model, fresh('st-01', answered.slice(0, 1)), who('st-01'))!.kind).toBe('note')
+    // The author answering back has the latest word again: the latest reply decides, not whether she ever replied.
+    const pressed = actsOf(model, [note, replyTo(asked, 'st-01', 'Tied to D10 box 1'), replyTo(asked, 'st-02', 'D10 shows a corrected box 1')])
+    expect(nextAction(model, fresh('st-01', pressed), who('st-01'))!.kind).toBe('note')
+  })
+
+  it('stops asking for an answer to a question once the viewer has replied to it', () => {
+    const question: [string, ActInput] = ['st-02', { type: 'note', target: 'F1040.1a', body: { kind: 'question_staff', to: 'st-01', text: 'Which W-2 is final?', blocking: false } }]
+    const [asked] = actsOf(model, [question])
+    const answered = actsOf(model, [question, replyTo(asked, 'st-01', 'The corrected one, D10')])
+    expect(nextAction(model, fresh('st-01', answered), who('st-01'))).toMatchObject({ kind: 'finding', finding: 'chk:CHK-06:F8949.B.N1' })
+    expect(nextAction(model, fresh('st-01', answered.slice(0, 1)), who('st-01'))!.kind).toBe('question')
   })
 
   it('falls back to the first red step for someone with no areas', () => {

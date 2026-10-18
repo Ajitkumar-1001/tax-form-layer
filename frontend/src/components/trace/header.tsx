@@ -1,8 +1,10 @@
 'use client'
 // Trace header: what the claim is, its value now and before, status, support, timing, effect, and the acts.
-import { createContext, type ReactNode, use } from 'react'
+import { createContext, type ReactNode, use, useId } from 'react'
 import { ActButton } from '@/components/acts/act-host'
+import { canOpen } from '@/components/acts/draft'
 import { formatClock } from '@/components/atoms/format'
+import { MaskedText } from '@/components/atoms/masked-text'
 import { Stake } from '@/components/atoms/money'
 import { RefLink } from '@/components/atoms/ref-link'
 import { FlagChips, StatusPill, SUPPORT_LEGEND, SupportLetters } from '@/components/atoms/status'
@@ -143,15 +145,33 @@ const ACTIONS: Record<ActionKind, Action[]> = {
   other: [NOTE, REVIEW, ATTACH],
 }
 
-/** The acts that fit this kind of ref. Each is disabled with the authorize() reason when not allowed. */
+/**
+ * The acts that fit this kind of ref. A refused one stays in the Tab order, described by its authorize() reason, which
+ * prints once under the bar however many buttons it refuses (every one, for someone not yet active).
+ */
 export function ActionBar({ target, kind }: { target: string; kind: ActionKind }) {
+  const ws = useWorkspace()
+  const id = useId()
+  const acts = ACTIONS[kind].map((a) => ({ a, auth: canOpen({ type: a.type, target, prefill: a.prefill }, ws).auth }))
+  const reasons = [...new Set(acts.flatMap(({ auth }) => (auth.ok ? [] : [auth.reason])))]
   return (
-    <div className="flex flex-wrap gap-1.5" role="toolbar" aria-label="Actions">
-      {ACTIONS[kind].map((a) => (
-        <ActButton key={a.label} type={a.type} target={target} prefill={a.prefill} size="sm" variant="outline">
-          {a.label}
-        </ActButton>
-      ))}
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap gap-1.5" role="toolbar" aria-label="Actions">
+        {acts.map(({ a, auth }) => (
+          <ActButton key={a.label} type={a.type} target={target} prefill={a.prefill} size="sm" variant="outline" reasonId={auth.ok ? undefined : `${id}-${reasons.indexOf(auth.reason)}`}>
+            {a.label}
+          </ActButton>
+        ))}
+      </div>
+      {reasons.length > 0 && (
+        <ul className="text-xs text-muted-foreground">
+          {reasons.map((r, i) => (
+            <li key={r} id={`${id}-${i}`} data-refusal>
+              <MaskedText text={r} context={target} />
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

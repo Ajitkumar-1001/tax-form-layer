@@ -11,6 +11,7 @@ import { OvAct, OvMasked } from './replay-safe'
 // The verb on an item's act button; the item's own text names what it acts on.
 const ACT_LABEL: Partial<Record<NextKind, string>> = {
   signoff_owed: 'Sign off',
+  partner_adjust: 'Sign off',
   request_approval: 'Request',
   return_signoff: 'Sign off',
   reassign: 'Reassign',

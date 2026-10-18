@@ -1,6 +1,6 @@
 'use client'
 // The universal claim pane for any ref (spec §3.2). Full page at /r/[...ref]; compact beside the queue
-// (header, findings and evidence only, with a link to the full trace).
+// (header, open notes, findings and evidence only, with a link to the full trace).
 import { type ReactNode, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { refHref } from '@/components/atoms/format'
@@ -14,8 +14,9 @@ import { EvidenceTab } from './evidence'
 import { FindingsList } from './findings'
 import { ActionBar, ClaimHeader, TraceNested } from './header'
 import { HistoryTab } from './history'
+import { Section } from './parts'
 import { claimFindingIds, pageRefForms, resolveRef } from './resolve'
-import { ActView, AreaView, BatchView, DataView, EntryView, EvView, FindingView, NotFound, PageView } from './views'
+import { ActView, AreaView, BatchView, DataView, EntryView, EvView, FindingView, NoteThread, NotFound, PageView } from './views'
 
 export function ClaimPane({ claimRef, compact = false }: { claimRef: string; compact?: boolean }) {
   const { model } = useWorkspace()
@@ -70,11 +71,23 @@ function ClaimView({ claim, compact }: { claim: Claim; compact: boolean }) {
   const cs = state.claims[claim.id]
   const findingIds = claimFindingIds(model, claim)
   const pageRefs = claim.kind === 'doc' ? (model.docs[claim.id]?.pages ?? []).flatMap((p) => pageRefForms(claim.id, p.page)) : []
+  // An open note makes the claim Open (project.ts), so it shows here with its Reply and Resolve.
+  const openSeqs = new Set(cs?.openNotes ?? [])
+  const notes = state.notes.filter((n) => openSeqs.has(n.seq))
   return (
     <>
       <ClaimHeader claim={claim} cs={cs} />
       <ActionBar target={claim.id} kind={claim.kind} />
-      <FindingsList ids={findingIds} />
+      {/* A focus return (act-host.tsx, returnFocusTo) that outlives what an act takes out of it: a note's Reply and Resolve
+          go with the note once it is resolved, and the Open notes block with its last note. */}
+      <div data-focus-return tabIndex={-1} className="flex flex-col gap-5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        {notes.length > 0 && (
+          <Section title="Open notes" aside={`${notes.length} open`}>
+            {notes.map((n) => <NoteThread key={n.seq} note={n} byline />)}
+          </Section>
+        )}
+        <FindingsList ids={findingIds} />
+      </div>
       {compact ? (
         <EvidenceTab claim={claim} />
       ) : (

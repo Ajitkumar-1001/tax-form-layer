@@ -93,4 +93,25 @@ describe('masked tokens in act text', () => {
     const html = render(h(CompareView), '', [])
     expect(html).toMatch(/differ between <b>v2<\/b> and <b>v3<\/b>/)
   })
+
+  it('compare stays on v2 → v3 when only a non-line claim is adjusted', () => {
+    const html = render(h(CompareView), '', [acts[0]]) // acts[0] adjusts THEO's SSN, a household fact
+    expect(html).toMatch(/differ between <b>v2<\/b> and <b>v3<\/b>/)
+  })
+
+  it('compare shows the live totals while a side is now, and a basis adjust opens on v3 → now', () => {
+    const basis = actsOf(model, [['st-01', { type: 'adjust', target: 'F8949.B.N1', body: { field: 'basis', to: 19100, reason: 'D11 supplement', evidence: ['D11'] } }]])
+    expect(render(h(CompareView), 'a=v3&b=now', basis)).toContain('from live adjustments')
+    expect(render(h(CompareView), 'a=v2&b=v3', basis)).not.toContain('from live adjustments')
+    const html = render(h(CompareView), '', basis)
+    expect(html).toMatch(/differ between <b>v3<\/b> and <b>now<\/b>/)
+    expect(html).toContain('(basis)')
+  })
+
+  it('compare keeps a label adjust on total tax out of the total-tax summary', () => {
+    const label = actsOf(model, [['st-01', { type: 'adjust', target: 'F1040.24', body: { field: 'label', to: 'Total tax after credits', reason: 'Label per the printed form', evidence: ['D11'] } }]])
+    const html = render(h(CompareView), 'a=v3&b=now', label).replaceAll('<!-- -->', '')
+    expect(html).toContain('Total tax (label)')
+    expect(html).not.toContain('Federal total tax')
+  })
 })

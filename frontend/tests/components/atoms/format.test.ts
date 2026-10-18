@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatClock, formatMoney, initials, refHref, relativeTime } from '@/components/atoms/format'
+import { balanceWords, formatClock, formatMoney, initials, refHref, relativeTime } from '@/components/atoms/format'
 
 describe('formatMoney', () => {
   it('formats with grouping, a true minus, optional plus, and a dash for missing', () => {
@@ -11,6 +11,15 @@ describe('formatMoney', () => {
     expect(formatMoney(-0.001, true)).toBe('0')
     expect(formatMoney(null)).toBe('—')
     expect(formatMoney(Number.NaN)).toBe('—')
+  })
+})
+
+describe('balanceWords', () => {
+  it('words a balance the way the client portal does: the amount unsigned, then who owes whom', () => {
+    expect(balanceWords(4220)).toEqual({ amount: '$4,220', words: 'you owe' })
+    expect(balanceWords(-8256)).toEqual({ amount: '$8,256', words: 'refund to you' })
+    // Nothing due is still "you owe": the portal's rule is owe >= 0.
+    expect(balanceWords(0)).toEqual({ amount: '$0', words: 'you owe' })
   })
 })
 

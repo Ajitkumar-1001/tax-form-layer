@@ -13,8 +13,8 @@ import type { State } from '@/lib/model/state'
 import { viewerOf } from '@/lib/model/viewer'
 import type { OpenActRequest } from '@/components/workspace/types'
 import {
-  DUE_DILIGENCE_QUESTIONS, RESOLUTION_LABEL, buildInput, canOpen, fixToRequest, formErrors, initialDraft, issuesByField,
-  levelsFor, normalizeRequest, parseAmount, previewAdjust, probeDraft, proposalText, suggestMethod,
+  DUE_DILIGENCE_QUESTIONS, RESOLUTION_LABEL, type Draft, buildInput, canOpen, fixToRequest, formErrors, initialDraft, issuesByField,
+  levelsFor, normalizeRequest, parseAmount, parseTo, previewAdjust, probeDraft, proposalText, suggestMethod,
 } from '@/components/acts/draft'
 
 const packet = JSON.parse(readFileSync(path.join(__dirname, '../../../data/okafor_lindqvist_2025_packet.json'), 'utf8')) as Packet
@@ -205,6 +205,18 @@ describe('proposal text (review should-fix: masking leak)', () => {
   it('copies the typed value for an ordinary line', () => {
     expect(proposalText(model, 'F1040.19', 'value', 400, '0', 'Not supported')).toBe('Proposed value: 400 → 0. Not supported')
   })
+  it('prints a typed amount the way the line shows it', () => {
+    expect(proposalText(model, 'F1040.19', 'value', 400, '6850', 'r')).toBe('Proposed value: 400 → 6,850. r')
+  })
+  it('words a yes/no answer the way the claim shows it, not as true or false', () => {
+    // The packet's yes/no claim, answered yes. The adjust form's yes/no choice sends 'true' or 'false', read as a boolean.
+    const yesNo = model.claimList.find((c) => typeof c.value === 'boolean' && !c.sensitive)!
+    expect(yesNo.value).toBe(true)
+    expect(parseTo('false', 'value', yesNo.value ?? null)).toBe(false)
+    const text = proposalText(model, yesNo.id, 'value', yesNo.value ?? null, 'false', 'r')
+    expect(text).toBe('Proposed value: yes → no. r')
+    expect(text).not.toMatch(/true|false/)
+  })
   it('never copies a typed value for a sensitive claim into free text', () => {
     const sensitive = model.claimList.find((c) => c.sensitive)!
     const text = proposalText(model, sensitive.id, 'value', sensitive.value ?? null, '123-45-6789', 'Typo on organizer')
@@ -293,7 +305,16 @@ describe('draft → ActInput', () => {
     expect(input.type === 'verify' && input.body.seen_value).toBe(400)
     const auth = authorize(model, moved, input, preparer)
     expect(auth.ok).toBe(false)
-    expect(!auth.ok && auth.reason).toMatch(/F1040\.19 is now 500, not 400/) // the stale check, not some other refusal
+    expect(!auth.ok && auth.reason).toMatch(/F1040\.19 changed to 500 since you saw 400/) // the stale check, not some other refusal
+  })
+  // Rule 5: an attesting field starts unanswered, so Verify then Save records nothing until the person says how they checked.
+  it('verify: no method is chosen until the person picks one', () => {
+    const req: OpenActRequest = { type: 'verify', target: 'F1040.19' }
+    expect(initialDraft(req, model, state).method).toBeNull()
+    expect(submit(req).errors.method).toBe('Choose how you checked it')
+    expect(submit(req, { method: 'recalculated' }).errors).toEqual({})
+    // A method the opener passes is still the one the form opens with.
+    expect(initialDraft({ ...req, prefill: { method: 'recalculated' } }, model, state).method).toBe('recalculated')
   })
   it('decide on a what-if pre-fills question, alternatives and the citation', () => {
     const d = initialDraft({ type: 'decide', target: 'whatif:standard_deduction' }, model, state)
@@ -355,5 +376,118 @@ describe('draft → ActInput', () => {
     expect(submit({ type: 'amend_open', target: 'return' }, { reason: 'too short' }).errors.reason).toBeTruthy()
     expect(submit({ type: 'client_approve', target: 'act:7' }, { pin: '1234' }).errors.pin).toBeTruthy()
     expect(submit({ type: 'client_approve', target: 'act:7' }, { pin: '12345' }).errors).toEqual({})
+  })
+})
+
+// UX rule 7: no Zod text in a field error. The schema is shared with the server, so the forms put its issues into formErrors'
+// plain words (text and list bounds by issue code, the PIN and the hours by field); an issue this mapping does not cover keeps
+// Zod's text. The sweeps below cover every form opened untouched plus the states a control can send past a schema bound (no
+// field but the PIN sets a maxLength).
+describe('field errors in plain words', () => {
+  /** How Zod's own sentences begin: rule 7's mechanical check. */
+  const ZOD_WORDING = /^(Too small|Too big|Invalid|Expected)/
+
+  it('field errors are plain words, not Zod\'s defaults', () => {
+    expect({
+      reason: submit({ type: 'adjust', target: 'F1040.19' }, { to: '0', reason: 'short' }).errors.reason,
+      text: submit({ type: 'note', target: 'F1040.19' }).errors.text,
+      pin: submit({ type: 'client_approve', target: 'act:7' }, { pin: '1234' }).errors.pin,
+      jurisdictions: submit({ type: 'file', target: 'return' }, { jurisdictions: [] }).errors.jurisdictions,
+    }).toEqual({
+      reason: 'Write at least 10 characters',
+      text: 'Required',
+      pin: 'Enter 5 digits',
+      jurisdictions: 'Choose at least one',
+    })
+  })
+  it('a text field names the minimum its schema asks for; whitespace alone counts as empty', () => {
+    expect(submit({ type: 'revert', target: 'act:7' }, { reason: 'no' }).errors.reason).toBe('Write at least 3 characters')
+    expect(submit({ type: 'decide', target: 'F1040.19' }).errors.authority).toBe('Write at least 3 characters')
+    expect(submit({ type: 'note', target: 'F1040.19' }, { text: '   ' }).errors.text).toBe('Required')
+  })
+  it('a schema bound is put into plain words by its issue code, naming the bound', () => {
+    expect(issuesByField([
+      { path: ['body', 'text'], message: 'Too big: string', code: 'too_big', origin: 'string', maximum: 4000 },
+      { path: ['body', 'alternatives'], message: 'Too big: array', code: 'too_big', origin: 'array', maximum: 10 },
+      { path: ['body', 'hours'], message: 'Too small: number', code: 'too_small', origin: 'number', minimum: 0 },
+    ])).toEqual({ text: 'Write at most 4000 characters', alternatives: 'Use at most 10 items', hours: 'Enter hours above 0, up to 24' })
+    // The top of the hours range reads the same as its bottom.
+    expect(issuesByField([{ path: ['body', 'hours'], message: 'Too big: number', code: 'too_big', origin: 'number', maximum: 24 }]))
+      .toEqual({ hours: 'Enter hours above 0, up to 24' })
+    // Hours that are not a number are formErrors' to word: its message wins the merge, though the schema's issue also lands on hours.
+    expect(submit({ type: 'time', target: 'business' }, { hours: 'abc' }).errors.hours).toBe('Enter hours, e.g. 1.5')
+  })
+  it('an issue with no plain wording keeps Zod\'s text, and the first issue per field wins', () => {
+    // The file picker refuses a file over 2 MB before the schema sees its size, so no form reaches this one.
+    const size = 'Too big: expected number to be <=2000000'
+    expect(issuesByField([{ path: ['body', 'file', 'size'], message: size, code: 'too_big', origin: 'number', maximum: 2_000_000 }])).toEqual({ file: size })
+    expect(issuesByField([
+      { path: ['body', 'reason'], message: 'first', code: 'too_small', origin: 'string', minimum: 10 },
+      { path: ['body', 'reason'], message: 'second', code: 'too_small', origin: 'string', minimum: 1 },
+      { path: ['target'], message: 'Invalid input' },
+    ])).toEqual({ reason: 'Write at least 10 characters', target: 'Invalid input' })
+  })
+  it('no act form, opened untouched, shows an error in Zod\'s wording', () => {
+    const forms: OpenActRequest[] = [
+      { type: 'verify', target: 'F1040.19' }, { type: 'adjust', target: 'F1040.19' }, { type: 'decide', target: 'F1040.19' },
+      { type: 'dispose', target: 'D12' }, { type: 'note', target: 'F1040.19' }, { type: 'reply', target: 'act:7' },
+      { type: 'resolve', target: 'act:7' }, { type: 'attach', target: 'D11' }, { type: 'signoff', target: 'business' },
+      { type: 'request_approval', target: 'return' }, { type: 'client_approve', target: 'act:7' }, { type: 'file', target: 'return' },
+      { type: 'amend_open', target: 'return' }, { type: 'revert', target: 'act:7' }, { type: 'assign', target: 'business' },
+      { type: 'time', target: 'business' }, { type: 'clock', target: 'season' },
+    ]
+    // A new act type fails here until its form is listed, so its wording gets looked at too.
+    expect(forms.map((f) => f.type).sort()).toEqual(ActInputZ.options.map((o) => o.shape.type.value).sort())
+    for (const f of forms) {
+      for (const message of Object.values(submit(f).errors)) expect(message, f.type).not.toMatch(ZOD_WORDING)
+    }
+  })
+  it('no state a control can send past a schema bound shows an error in Zod\'s wording', () => {
+    const x = (n: number) => 'x'.repeat(n)
+    const refs = (n: number) => Array.from({ length: n }, (_, i) => `ev-${i}`).join(', ')
+    const lines = (n: number) => Array.from({ length: n }, (_, i) => `Alternative ${i + 1}`).join('\n')
+    const chars = (n: number) => `Write at most ${n} characters`
+    const items = (n: number) => `Use at most ${n} items`
+    const HOURS = 'Enter hours above 0, up to 24'
+    const decide: Partial<Draft> = { question: 'Which method?', choice: 'Cash', authority: 'IRC §451' }
+    const reason = 'a long enough reason'
+    // [name, the form, what is typed, the field that answers, what it says]. Each is a text or number an input or textarea
+    // takes (none but the PIN sets a maxLength) or a list it splits, so only the schema stops it. A bound on a value the
+    // person does not type is not listed: a target, a what-if, a Choice, a date input, or the attachment the file picker caps.
+    const BEYOND: [string, OpenActRequest, Partial<Draft>, string, string][] = [
+      ['hours 0', { type: 'time', target: 'business' }, { hours: '0' }, 'hours', HOURS],
+      ['hours -1', { type: 'time', target: 'business' }, { hours: '-1' }, 'hours', HOURS],
+      ['hours 25', { type: 'time', target: 'business' }, { hours: '25' }, 'hours', HOURS],
+      ['time note 501 characters', { type: 'time', target: 'business' }, { hours: '1', timeNote: x(501) }, 'note', chars(500)],
+      ['note text 4001 characters', { type: 'note', target: 'F1040.19' }, { text: x(4001) }, 'text', chars(4000)],
+      ['reply text 4001 characters', { type: 'reply', target: 'act:7' }, { text: x(4001) }, 'text', chars(4000)],
+      ['attach text 20001 characters', { type: 'attach', target: 'D11' }, { label: 'Statement', text: x(20001) }, 'text', chars(20000)],
+      ['attach label 4001 characters', { type: 'attach', target: 'D11' }, { label: x(4001), text: 'pasted' }, 'label', chars(4000)],
+      ['attach filed against 201 refs', { type: 'attach', target: 'D11' }, { label: 'Statement', text: 'pasted', filedAgainst: refs(201) }, 'filed_against', items(200)],
+      ['attach filed against a 201-character ref', { type: 'attach', target: 'D11' }, { label: 'Statement', text: 'pasted', filedAgainst: x(201) }, 'filed_against', chars(200)],
+      ['alternatives 11 lines', { type: 'decide', target: 'F1040.19' }, { ...decide, alternatives: lines(11) }, 'alternatives', items(10)],
+      ['alternatives a 501-character line', { type: 'decide', target: 'F1040.19' }, { ...decide, alternatives: x(501) }, 'alternatives', chars(500)],
+      ['decide question 4001 characters', { type: 'decide', target: 'F1040.19' }, { ...decide, question: x(4001) }, 'question', chars(4000)],
+      ['decide choice 4001 characters', { type: 'decide', target: 'F1040.19' }, { ...decide, choice: x(4001) }, 'choice', chars(4000)],
+      ['decide authority 4001 characters', { type: 'decide', target: 'F1040.19' }, { ...decide, authority: x(4001) }, 'authority', chars(4000)],
+      ['decide evidence 201 refs', { type: 'decide', target: 'F1040.19' }, { ...decide, evidence: refs(201) }, 'evidence', items(200)],
+      ['verify evidence a 201-character ref', { type: 'verify', target: 'F1040.19' }, { evidence: x(201) }, 'evidence', chars(200)],
+      ['adjust reason 4001 characters', { type: 'adjust', target: 'F1040.19' }, { to: '0', reason: x(4001) }, 'reason', chars(4000)],
+      ['adjust label 2001 characters', { type: 'adjust', target: 'F1040.19', prefill: { field: 'label' } }, { to: x(2001), reason }, 'to', chars(2000)],
+      ['adjust evidence 201 refs', { type: 'adjust', target: 'F1040.19' }, { to: '0', reason, evidence: refs(201) }, 'evidence', items(200)],
+      ['dispose reason 4001 characters', { type: 'dispose', target: 'D12' }, { reason: x(4001) }, 'reason', chars(4000)],
+      ['dispose ref 201 characters', { type: 'dispose', target: 'D12' }, { disposition: 'duplicate_of', ref: x(201), reason: 'same 1099' }, 'ref', chars(200)],
+      ['resolve text 4001 characters', { type: 'resolve', target: 'act:7' }, { text: x(4001) }, 'text', chars(4000)],
+      ['resolve authority 501 characters', { type: 'resolve', target: 'act:7' }, { text: 'done', authority: x(501) }, 'authority', chars(500)],
+      ['revert reason 4001 characters', { type: 'revert', target: 'act:7' }, { reason: x(4001) }, 'reason', chars(4000)],
+      ['amend reason 4001 characters', { type: 'amend_open', target: 'return' }, { reason: x(4001) }, 'reason', chars(4000)],
+      // Date.parse reads this, so formErrors lets it through; it is 62 characters and the schema allows 30.
+      ['clock a 62-character date', { type: 'clock', target: 'season' }, { clockTo: 'Mon Jan 04 2027 09:00:00 GMT+0000 (Coordinated Universal Time)' }, 'to', chars(30)],
+    ]
+    for (const [name, req, edits, field, want] of BEYOND) {
+      const { errors } = submit(req, edits)
+      expect.soft(errors[field], name).toBe(want)
+      for (const message of Object.values(errors)) expect.soft(message, name).not.toMatch(ZOD_WORDING)
+    }
   })
 })

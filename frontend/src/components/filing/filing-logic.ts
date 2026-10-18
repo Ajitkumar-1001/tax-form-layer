@@ -1,11 +1,14 @@
 // Pure half of the filing desk (spec §3.6): sign-off matrix, partner desk, approval status, filings,
 // season record and extension facts. No React, so vitest runs it in node.
-import type { Act } from '@/lib/model/acts'
+import { actorName, VERB } from '@/components/workspace/log'
+import type { Act, ActType } from '@/lib/model/acts'
 import type { Model } from '@/lib/model/build'
 import { needsPartner } from '@/lib/model/effects'
 import { AREA_LABEL, type AreaKey, SEASON_START } from '@/lib/model/ids'
 import type { Packet } from '@/lib/model/packet-types'
+import { claimsOfRef, indexActs } from '@/lib/model/project'
 import type { FilingView, SignoffView, State } from '@/lib/model/state'
+import { identities } from '@/lib/model/viewer'
 
 // ── Sign-off matrix ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +44,30 @@ export function signoffMatrix(state: State): MatrixRow[] {
   const latest = latestSignoffs(state.signoffs)
   const row = (target: string, label: string): MatrixRow => ({ target, label, cells: MATRIX_LEVELS.map((l) => cell(latest, target, l)) })
   return [...state.areas.map((a) => row(`area:${a.key}`, a.label)), row('return', 'Whole return')]
+}
+
+// The acts that can move a claim's hash (project.ts): values and decisions, evidence (attachments, replies, applied comms),
+// findings and open notes. An act reaches the claims its refs name and every claim of a finding it cleared, which can sit
+// in another area. Silent: a reopen by the season clock, a batch revert, and a revert of a clearing act on the claims only
+// its findings named (a reverted act is no longer live, so nothing records which findings it had cleared).
+const SINCE = new Set<ActType>(['verify', 'adjust', 'decide', 'dispose', 'note', 'reply', 'resolve', 'attach', 'revert'])
+
+/** A reopened sign-off's "since then": each live act after it that touches a changed claim, as "<verb> by <name>", once
+ * each, oldest first. [] while the sign-off is valid. */
+export function sinceSigned(model: Model, state: State, s: SignoffView): string[] {
+  if (s.valid) return []
+  const ix = indexActs(state.acts)
+  const changed = new Set(s.changed)
+  const people = identities(model.packet)
+  // seq → the claims of the findings that act cleared, as the projection records them (resolvedBy: the first live act).
+  const cleared = new Map<number, string[]>()
+  for (const f of Object.values(state.findings)) {
+    if (f.resolvedBy) cleared.set(f.resolvedBy.seq, [...(cleared.get(f.resolvedBy.seq) ?? []), ...(model.findingsById[f.id]?.claims ?? [])])
+  }
+  const reached = (a: Act) => [...a.refs.flatMap((r) => claimsOfRef(model, ix.bySeq, r)), ...(cleared.get(a.seq) ?? [])]
+  return [...new Set(ix.live
+    .filter((a) => a.seq > s.seq && SINCE.has(a.type) && reached(a).some((c) => changed.has(c)))
+    .map((a) => `${VERB[a.type]} by ${actorName(people, a.actor)}`))]
 }
 
 // ── Partner desk ────────────────────────────────────────────────────────────────────────
@@ -185,17 +212,18 @@ export function extensionTranscript(p: Packet, clock: string): { asOf: string | 
 
 // ── Client copy ─────────────────────────────────────────────────────────────────────────
 
+// The engine's balance lines (F1040.37, F540NR.97) are left out: the summary states the balance with every change.
 export const KEY_LINES: { federal: string[]; california: string[] } = {
-  federal: ['F1040.1z', 'F1040.9', 'F1040.11', 'F1040.15', 'F1040.24', 'F1040.33', 'F1040.37'],
-  california: ['F540NR.17', 'F540NR.32', 'F540NR.35', 'F540NR.64', 'F540NR.78', 'F540NR.97'],
+  federal: ['F1040.1z', 'F1040.9', 'F1040.11', 'F1040.15', 'F1040.24', 'F1040.33'],
+  california: ['F540NR.17', 'F540NR.32', 'F540NR.35', 'F540NR.64', 'F540NR.78'],
 }
 
 export interface CopyLine {
   key: string
   label: string
   value: number | string | boolean | null
-  /** The engine value no longer includes an adjusted input, or it was adjusted itself: an estimate. */
-  estimate: boolean
+  /** An input was adjusted and this engine value does not include it. A line adjusted itself holds the person's value. */
+  notRecomputed: boolean
 }
 
 export function keyLines(model: Model, state: State, keys: string[]): CopyLine[] {
@@ -205,7 +233,7 @@ export function keyLines(model: Model, state: State, keys: string[]): CopyLine[]
       const c = state.claims[k]
       return {
         key: k, label: model.claims[k].label, value: c?.effective ?? null,
-        estimate: !!c && (c.flags.includes('stale') || !!c.adjust),
+        notRecomputed: !!c && c.flags.includes('stale') && !c.adjust,
       }
     })
 }

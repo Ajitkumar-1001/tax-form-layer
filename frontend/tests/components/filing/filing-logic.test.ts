@@ -129,10 +129,24 @@ describe('extension transcript', () => {
 })
 
 describe('client copy', () => {
-  it('reads key lines from the projection and marks adjusted ones as estimates', () => {
-    const lines = keyLines(model, project(model, [], who('st-03')), KEY_LINES.federal)
-    expect(lines.find((l) => l.key === 'F1040.37')).toMatchObject({ value: 4220, estimate: false })
-    const adjusted = keyLines(model, play([['st-01', adjustSchC]]), ['SchC.1', 'F1040.9'])
-    expect(adjusted.every((l) => l.estimate)).toBe(true)
+  it("marks stale key lines 'not recomputed' and leaves the balance to the summary", () => {
+    expect(KEY_LINES.federal).not.toContain('F1040.37')
+    expect(KEY_LINES.california).not.toContain('F540NR.97')
+    expect(keyLines(model, project(model, [], who('st-03')), KEY_LINES.federal).some((l) => l.notRecomputed)).toBe(false)
+    expect(keyLines(model, play([['st-01', adjustSchC]]), ['SchC.1', 'F1040.9', 'F1040.1z']).map((l) => l.notRecomputed)).toEqual([false, true, false])
+  })
+
+  it('leaves a stale line the person then adjusted directly untagged: it holds their value, not the engine figure', () => {
+    const adjustTotalIncome: ActInput = {
+      type: 'adjust', target: 'F1040.9',
+      body: { field: 'value', to: 470000, reason: 'Total income re-keyed by hand after the Paywell change', evidence: ['D14'] },
+    }
+    const state = play([['st-01', adjustSchC], ['st-01', adjustTotalIncome]])
+    // Both halves of the rule hold on this line, so the untagged result proves the adjust clause and not just the stale one.
+    expect(state.claims['F1040.9'].flags).toContain('stale')
+    expect(state.claims['F1040.9'].adjust).toBeDefined()
+    const [total, agi] = keyLines(model, state, ['F1040.9', 'F1040.11'])
+    expect(total.notRecomputed).toBe(false)
+    expect(agi.notRecomputed).toBe(true)
   })
 })

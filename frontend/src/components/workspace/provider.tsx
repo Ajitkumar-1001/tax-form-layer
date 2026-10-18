@@ -148,16 +148,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const state: State = projected
 
   // `quiet` suppresses every toast (success and refusal): the caller shows the result itself, e.g. inline in a form.
+  // `quietRefusal` suppresses only the refusal toast, for a form that prints the reason itself but still wants the
+  // success toast and its Undo.
   // `undoLabel` replaces the success toast text. base_seq is the poll cursor (see `polled`), read from a ref so a
   // late Undo is not stale. The pull is awaited so the next post's base_seq already covers this one and any gap.
-  async function post(inputs: ActInput[], opts: { quiet?: boolean; undoLabel?: string } = {}): Promise<PostResult> {
+  async function post(inputs: ActInput[], opts: { quiet?: boolean; quietRefusal?: boolean; undoLabel?: string } = {}): Promise<PostResult> {
     const body = PostActsZ.safeParse({ engagement: eng, acts: inputs, base_seq: polled.current })
-    if (!body.success) return refuse(400, `Not sent: ${z.prettifyError(body.error)}`, opts.quiet)
+    if (!body.success) return refuse(400, `Not sent: ${z.prettifyError(body.error)}`, opts.quiet || opts.quietRefusal)
     const held = latest.current?.engagement === eng ? latest.current.acts : []
     const sent = await settle(api.postActs(body.data))
     if (!sent.ok) {
       void pull.current()
-      return refuse(sent.error instanceof api.ApiError ? sent.error.status : 0, api.message(sent.error), opts.quiet)
+      return refuse(sent.error instanceof api.ApiError ? sent.error.status : 0, api.message(sent.error), opts.quiet || opts.quietRefusal)
     }
     const acts = sent.value
     setLog((prev) => (prev?.engagement === eng ? { engagement: eng, acts: mergeActs(prev.acts, acts) } : prev))

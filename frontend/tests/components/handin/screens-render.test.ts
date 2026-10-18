@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import { refHref } from '@/components/atoms'
 import { ClientPortal } from '@/components/client/client-portal'
 import { ClientCopy } from '@/components/filing/client-copy'
+import { KEY_LINES, keyLines } from '@/components/filing/filing-logic'
 import { FilingPage } from '@/components/filing/filing-page'
 import { findNotice } from '@/components/filing/notice-logic'
 import { NoticePage } from '@/components/filing/notice-page'
@@ -197,10 +198,43 @@ describe('client portal', () => {
 })
 
 describe('client copy', () => {
+  const adjusted = log([['st-01', { type: 'adjust', target: 'SchC.1', body: { field: 'value', to: 151300, reason: 'Paywell 1099-K is already inside the Atlas deposits', evidence: ['D14'] } }]])
+  // A total line carries no tax effect (effects.ts: category 'none'), so adjusting it moves neither delta while the lines it feeds go stale.
+  // 468,587 is the 480,987 total less the 12,400 that `adjusted` takes off SchC.1 (163,700 to 151,300).
+  const refooted = log([['st-01', { type: 'adjust', target: 'F1040.9', body: { field: 'value', to: 468587, reason: 'Total income re-footed by hand for the Schedule C correction', evidence: ['D14'] } }]])
+
   it('shows the change since v3 when adjusted, so the balance reconciles', () => {
     expect(text(render(h(ClientCopy), ws('st-03')))).not.toContain('Changes since')
-    const adjusted = log([['st-01', { type: 'adjust', target: 'SchC.1', body: { field: 'value', to: 151300, reason: 'Paywell 1099-K is already inside the Atlas deposits', evidence: ['D14'] } }]])
     expect(text(render(h(ClientCopy), ws('st-03', adjusted)))).toContain('Changes since the software computed it (estimate)')
+  })
+
+  it('never prints the engine balance line beside the estimated refund', () => {
+    const t = text(render(h(ClientCopy), ws('st-03', adjusted)))
+    expect(t).toContain('Refund (estimate) 182')
+    expect(t).toContain('Refund (estimate) 8,640')
+    expect(t).toContain('Total income 480,987 not recomputed')
+    expect(t).not.toContain('Amount you owe')
+    expect(t).not.toContain('Overpaid tax')
+    expect(t).not.toContain('linear estimates')
+    // The footnote says what the tag and the figures above "Changes since…" are, and only when there is something to say.
+    expect(t).toContain(
+      'The tax software has not recomputed this return since our changes. Lines marked “not recomputed” and the figures above each “Changes since…” line are its figures from before them; the refund or balance due includes every change, as an estimate.',
+    )
+    expect(text(render(h(ClientCopy), ws('st-03')))).not.toContain('has not recomputed')
+  })
+
+  it('shows the footnote when the only change moves no tax but leaves key lines not recomputed', () => {
+    const w = ws('st-03', refooted)
+    // Premise: both deltas are 0 and the lines the total feeds are stale, so only the "not recomputed" trigger can show the footnote.
+    expect(w.state.totals.federal.delta).toBe(0)
+    expect(w.state.totals.california.delta).toBe(0)
+    expect(keyLines(model, w.state, [...KEY_LINES.federal, ...KEY_LINES.california]).filter((l) => l.notRecomputed).map((l) => l.key)).toEqual(['F1040.11', 'F1040.15', 'F1040.24'])
+    const t = text(render(h(ClientCopy), w))
+    // No delta row. The bare "Changes since" cannot be the check: the footnote's own text says “Changes since…”.
+    expect(t).not.toContain('Changes since the software computed it (estimate)')
+    // The adjusted total holds the person's figure and is untagged; the line it feeds is tagged.
+    expect(t).toContain('Total income 468,587 F1040.11 Adjusted gross income 445,590 not recomputed')
+    expect(t).toContain('The tax software has not recomputed this return since our changes.')
   })
 })
 

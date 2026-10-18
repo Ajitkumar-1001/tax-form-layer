@@ -5,7 +5,7 @@ import type { Val } from '@/lib/model/claims'
 import type { Finding } from '@/lib/model/checks/types'
 import { refKind } from '@/lib/model/ids'
 import { indexActs, project } from '@/lib/model/project'
-import type { State } from '@/lib/model/state'
+import type { AdjustView, State } from '@/lib/model/state'
 
 /** Sides: v1 | v2 | v3 | 2024 | now (v3 with live adjusts) | whatif:<id>. */
 export function sideOptions(model: Model): { value: string; label: string }[] {
@@ -42,6 +42,8 @@ export interface DiffRow {
   key: string
   /** Set when /r/<key> resolves; a form-level 2024 key such as F8938 has no trace. */
   ref?: string
+  /** A live basis or label adjust's row under now; a value row has none. */
+  field?: 'basis' | 'label'
   label: string
   a: Val
   b: Val
@@ -56,6 +58,12 @@ function ordinal(model: Model, side: string): number {
   return i >= 0 ? i + 1 : model.packet.return_versions.length + 1
 }
 
+/** The last live adjust of one field of a target (state.claims[target].adjust is the last of any field). */
+const lastLive = (state: State, target: string, field: AdjustView['field']) =>
+  state.adjusts.filter((v) => !v.reverted && v.target === target && v.field === field).at(-1)
+
+const adjustBy = (v: AdjustView, nameOf: (id: string) => string): Attribution => ({ text: `adjust #${v.seq} by ${nameOf(v.actor)}`, ref: `act:${v.seq}`, detail: v.reason })
+
 export function attribution(model: Model, state: State, a: string, b: string, key: string, nameOf: (id: string) => string): Attribution[] {
   const [lo, hi] = [ordinal(model, a), ordinal(model, b)].sort((x, y) => x - y)
   const out: Attribution[] = []
@@ -68,8 +76,8 @@ export function attribution(model: Model, state: State, a: string, b: string, ke
     if (alt?.changed_lines.some((c) => c.key === key)) out.push({ text: `what-if ${alt.id} (engine alternative)`, ref: side })
   }
   if (a === 'now' || b === 'now') {
-    const adj = state.claims[key]?.adjust
-    if (adj && !adj.reverted) out.push({ text: `adjust #${adj.seq} by ${nameOf(adj.actor)}`, ref: `act:${adj.seq}`, detail: adj.reason })
+    const adj = lastLive(state, key, 'value')
+    if (adj) out.push(adjustBy(adj, nameOf))
   }
   return out
 }
@@ -82,7 +90,7 @@ export function diffSides(model: Model, state: State, a: string, b: string, name
   if (!va || !vb) return null
   const keys = [...new Set([...Object.keys(va), ...Object.keys(vb)])]
   const labels = model.packet.prior_years.return_2024.line_labels
-  return keys
+  const rows = keys
     .filter((k) => !same(va[k], vb[k]))
     .map((key): DiffRow => {
       const x = va[key] ?? null
@@ -91,7 +99,24 @@ export function diffSides(model: Model, state: State, a: string, b: string, name
       const ref = model.claims[key] || refKind(key) !== 'unknown' ? key : undefined
       return { key, ref, label: model.claims[key]?.label ?? labels[key] ?? key, a: x, b: y, delta, by: attribution(model, state, a, b, key, nameOf) }
     })
-    .sort((p, q) => Math.abs(q.delta ?? 0) - Math.abs(p.delta ?? 0) || p.key.localeCompare(q.key))
+  // A basis or label adjust leaves every value equal, so against now each (target, field) gets one row spanning its live adjusts,
+  // which chain (derive.ts adjustFrom): first from → last to, none if they net to zero. Not against 2024: a delivered basis or label is the 2025 return's.
+  if ((a === 'now') !== (b === 'now') && a !== '2024' && b !== '2024') {
+    const chains = new Map<string, { field: 'basis' | 'label'; live: AdjustView[] }>()
+    for (const v of state.adjusts) {
+      if (v.reverted || v.field === 'value') continue
+      const k = `${v.field}:${v.target}`
+      chains.set(k, { field: v.field, live: [...(chains.get(k)?.live ?? []), v] })
+    }
+    for (const { field, live } of chains.values()) {
+      const [first, last] = [live[0], live[live.length - 1]]
+      const [x, y] = a === 'now' ? [last.to, first.from] : [first.from, last.to]
+      if (same(x, y)) continue
+      const delta = typeof x === 'number' && typeof y === 'number' ? Math.round((y - x) * 100) / 100 : null
+      rows.push({ key: first.target, ref: first.target, field, label: `${model.claims[first.target]?.label ?? first.target} (${field})`, a: x, b: y, delta, by: live.map((v) => adjustBy(v, nameOf)) })
+    }
+  }
+  return rows.sort((p, q) => Math.abs(q.delta ?? 0) - Math.abs(p.delta ?? 0) || p.key.localeCompare(q.key))
 }
 
 // ── Since I last looked ────────────────────────────────────────────────────────────────────
