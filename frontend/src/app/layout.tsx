@@ -6,7 +6,8 @@ import { WorkspaceProvider } from '@/components/workspace'
 import './globals.css'
 
 const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-sans' })
-const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
+// Mono is used on a few screens only: preloading it on every page made Chrome warn that the preload went unused.
+const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'], preload: false })
 
 export const metadata: Metadata = {
   title: 'Workpaper · Okafor-Lindqvist 2025',
