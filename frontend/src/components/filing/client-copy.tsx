@@ -15,7 +15,9 @@ export function ClientCopy() {
   const spouses = p.household.people.filter((x) => x.role === 'taxpayer' || x.role === 'spouse').map((x) => x.name)
   const fed = keyLines(model, state, KEY_LINES.federal)
   const ca = keyLines(model, state, KEY_LINES.california)
-  const changed = state.totals.federal.delta !== 0 || state.totals.california.delta !== 0 || [...fed, ...ca].some((l) => l.notRecomputed)
+  // moves: a delta is non-zero, so a "Changes since…" line shows and the refund or balance due includes the changes, as an estimate.
+  const moves = state.totals.federal.delta !== 0 || state.totals.california.delta !== 0
+  const changed = moves || [...fed, ...ca].some((l) => l.notRecomputed)
   return (
     <article className="flex flex-col gap-5">
       <header className="flex flex-col gap-1 border-b pb-3">
@@ -39,8 +41,17 @@ export function ClientCopy() {
       </div>
       {changed && (
         <p className="text-xs text-muted-foreground">
-          The tax software has not recomputed this return since our changes. Lines marked “not recomputed” and the figures above each
-          “Changes since…” line are its figures from before them; the refund or balance due includes every change, as an estimate.
+          {moves ? (
+            <>
+              The tax software has not recomputed this return since our changes. Lines marked “not recomputed” and the figures above each
+              “Changes since…” line are its figures from before them; the refund or balance due includes every change, as an estimate.
+            </>
+          ) : (
+            <>
+              The tax software has not recomputed this return since our changes. Lines marked “not recomputed” are its figures from
+              before them, and so is the refund or balance due: it does not yet reflect those changes.
+            </>
+          )}
         </p>
       )}
     </article>

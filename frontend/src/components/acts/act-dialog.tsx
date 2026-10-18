@@ -2,7 +2,7 @@
 // One dialog body for every act type: the fields of the open type, a live tax-effect preview, plain field errors, and, in place
 // of the submit button, the authorize() refusal (or the tour's read-only sentence while the tour is open). Posts the parsed act
 // via the workspace.
-import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from 'react'
+import { type ComponentProps, type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { balanceWords, MaskedText, refLabel } from '@/components/atoms'
 import { sinceSigned } from '@/components/filing/filing-logic'
@@ -91,6 +91,15 @@ export function ActForm({ req, onDone, onOpen }: ActFormProps) {
   const [serverError, setServerError] = useState<string | null>(null)
   // Read once, when the form opens (act-host keys it per open, and the modal sits above the tour's card).
   const [tourLocked] = useState(() => tourBlocksWrite(ws.engagement))
+  // Whether the form is still open. Cancel and Esc stay live during a Save, and a refusal that lands after the close has no
+  // form to print in, so the post toasts it (submit). Set again on mount for strict mode's remount; read only in handlers.
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [])
   const set = (patch: Partial<Draft>) => {
     setDraft((prev) => ({ ...prev, ...patch }))
     // A refusal describes the form as it was sent. Without this, "Verify X instead" would bring the old message
@@ -123,10 +132,11 @@ export function ActForm({ req, onDone, onOpen }: ActFormProps) {
     setBusy(true)
     setServerError(null)
     try {
-      // A refusal is printed here (inline, or in the footer once the log pull makes the probe refuse too), so it gets no toast.
-      const res = await ws.post([parsed.data], { quietRefusal: true })
+      // A refusal is printed here (inline, or in the footer once the log pull makes the probe refuse too), so it gets no toast
+      // while the form is open. The post asks when the refusal arrives: one that lands after the close is toasted instead.
+      const res = await ws.post([parsed.data], { quietRefusal: () => alive.current })
       if (res.ok) onDone()
-      else setServerError(res.reason)
+      else if (alive.current) setServerError(res.reason)
     } catch (x) {
       setServerError(x instanceof Error ? x.message : 'Could not reach the server')
     } finally {

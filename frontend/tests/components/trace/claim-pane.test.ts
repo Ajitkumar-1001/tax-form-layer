@@ -182,4 +182,22 @@ describe('claim pane open notes', () => {
       for (const b of buttons) expect(b.name.startsWith(`${b.shown} `), b.name).toBe(true)
     }
   })
+
+  // One unbroken word or pasted link in a note ran out of its card and made the queue drawer scroll sideways. overflow-wrap
+  // is inherited, so the class on the thread's root covers the note, its replies and its resolution.
+  it("puts wrap-anywhere on the note thread's root, on the claim and on the note's own page", () => {
+    const roots: [string, string | undefined][] = []
+    for (const compact of [true, false]) {
+      // On the claim the root opens right before the byline.
+      const block = sectionOf(render(claim, wsOf(log), compact), 'Open notes')
+      roots.push([`claim, compact ${compact}`, /<div class="([^"]*)"><p\b[^>]*><span>Review note/.exec(block)?.[1]])
+    }
+    // On the act's page there is no byline: the root opens right before the note's text.
+    roots.push(['act page', /<div class="([^"]*)"><p class="text-sm">/.exec(sectionOf(render(note, wsOf(log)), 'Open note'))?.[1]])
+    for (const [where, cls] of roots) {
+      expect(cls, where).toBeDefined()
+      expect(cls?.split(' '), where).toContain('flex-col')
+      expect(cls?.split(' '), where).toContain('wrap-anywhere')
+    }
+  })
 })

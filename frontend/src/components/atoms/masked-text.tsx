@@ -25,9 +25,11 @@ export function MaskedText({ text, context }: { text: Val; context: string }) {
 }
 
 // Both buttons sit in hosts of any face (mono, semibold, 20 px): font-sans font-normal puts the page's type back. The ::after
-// stretches the target vertically only (24 px, 32 px on touch), so it never covers what sits beside the button. Reveal takes
-// the pointer back while it is aria-disabled (busy, or no workspace); Hide is never inert.
-const TARGET = 'relative cursor-pointer font-sans font-normal after:absolute after:inset-x-0 after:-inset-y-1 pointer-coarse:after:-inset-y-2'
+// stretches the target vertically only, to 24 px on every pointer, touch included, so it never covers what sits beside the
+// button. It had a taller 32 px strip on touch, removed: where masked lines sit about 20 px apart (/r/household) that strip
+// overlapped the next line's button, and a tap there revealed and logged the other value. Reveal
+// takes the pointer back while it is aria-disabled (busy, or no workspace); Hide is never inert.
+const TARGET = 'relative cursor-pointer font-sans font-normal after:absolute after:inset-x-0 after:-inset-y-1'
 
 type Shown = { value: string } | { reason: string }
 

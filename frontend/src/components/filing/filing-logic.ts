@@ -222,7 +222,7 @@ export interface CopyLine {
   key: string
   label: string
   value: number | string | boolean | null
-  /** An input was adjusted and this engine value does not include it. A line adjusted itself holds the person's value. */
+  /** An input was adjusted and this engine value does not include it. A line whose VALUE was adjusted itself holds the person's value. */
   notRecomputed: boolean
 }
 
@@ -233,7 +233,7 @@ export function keyLines(model: Model, state: State, keys: string[]): CopyLine[]
       const c = state.claims[k]
       return {
         key: k, label: model.claims[k].label, value: c?.effective ?? null,
-        notRecomputed: !!c && c.flags.includes('stale') && !c.adjust,
+        notRecomputed: !!c && c.flags.includes('stale') && !state.adjusts.some((v) => !v.reverted && v.target === k && v.field === 'value'),
       }
     })
 }

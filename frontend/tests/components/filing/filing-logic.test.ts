@@ -9,7 +9,7 @@ import { project } from '@/lib/model/project'
 import type { State } from '@/lib/model/state'
 import { identities } from '@/lib/model/viewer'
 import {
-  extensionTranscript, keyLines, KEY_LINES, partnerDesk, seasonRecord, signoffMatrix, signTargets, spouseStatus,
+  extensionTranscript, keyLines, KEY_LINES, partnerDesk, seasonRecord, signoffMatrix, signTargets, sinceSigned, spouseStatus,
 } from '@/components/filing/filing-logic'
 
 const packet = JSON.parse(readFileSync(path.join(__dirname, '../../../data/okafor_lindqvist_2025_packet.json'), 'utf8')) as Packet
@@ -54,6 +54,31 @@ describe('signoffMatrix', () => {
     const cell = changed.find((r) => r.target === 'area:business')!.cells[0]
     expect(cell.state).toBe('reopened')
     expect(cell.signoff?.changed).toContain('SchC.1')
+  })
+})
+
+// A reopened sign-off's "since then" (the sign-off matrix and the Sign off form): each act once, oldest first, reverts included.
+describe('sinceSigned', () => {
+  const sign: [string, ActInput] = ['st-01', signoff('area:business', 'preparer')]
+  const business = (state: State) => state.signoffs.find((s) => s.target === 'area:business' && s.level === 'preparer')!
+
+  it('names each act once, oldest first: two notes by Daniel, then a reply by Priya', () => {
+    const tie: [string, ActInput] = ['st-02', { type: 'note', target: 'SchC.1', body: { kind: 'review_note', text: 'Tie gross receipts to the 1099-K first.', blocking: true } }]
+    const bank: [string, ActInput] = ['st-02', { type: 'note', target: 'SchC.1', body: { kind: 'review_note', text: 'Tie the Atlas deposits to the bank statements too.', blocking: false } }]
+    const noted = play([sign, tie, bank])
+    const first = noted.notes.find((n) => n.text === 'Tie gross receipts to the 1099-K first.')!.seq
+    const reply: [string, ActInput] = ['st-01', { type: 'reply', target: `act:${first}`, body: { text: 'Tied: see the D14 deposits.', attachments: [] } }]
+    const state = play([sign, tie, bank, reply])
+    expect(business(state).valid).toBe(false)
+    expect(sinceSigned(model, state, business(state))).toEqual(['Note added by Daniel Ortiz', 'Replied by Priya Raman'])
+  })
+
+  it('names a revert of an adjust the sign-off covered', () => {
+    const seq = play([['st-01', adjustSchC]]).adjusts.find((v) => v.target === 'SchC.1')!.seq
+    const state = play([['st-01', adjustSchC], sign, ['st-01', { type: 'revert', target: `act:${seq}`, body: { reason: 'The Paywell figure was right after all' } }]])
+    expect(business(state).valid).toBe(false)
+    expect(business(state).changed).toContain('SchC.1')
+    expect(sinceSigned(model, state, business(state))).toContain('Reverted by Priya Raman')
   })
 })
 
@@ -148,5 +173,34 @@ describe('client copy', () => {
     const [total, agi] = keyLines(model, state, ['F1040.9', 'F1040.11'])
     expect(total.notRecomputed).toBe(false)
     expect(agi.notRecomputed).toBe(true)
+  })
+
+  // Only a value adjust makes a line hold the person's figure: a label adjust leaves the engine's pre-change number in place.
+  it('keeps the tag on a stale line whose label alone was then adjusted', () => {
+    const relabel: ActInput = {
+      type: 'adjust', target: 'F1040.11',
+      body: { field: 'label', to: 'Adjusted gross income (AGI)', reason: 'Label as printed on the 2025 Form 1040', evidence: [] },
+    }
+    const state = play([['st-01', adjustSchC], ['st-01', relabel]])
+    // The line is stale and carries an adjust, a label one: what the rule used to read as "holds the person's value".
+    expect(state.claims['F1040.11'].flags).toContain('stale')
+    expect(state.claims['F1040.11'].adjust?.field).toBe('label')
+    expect(keyLines(model, state, ['F1040.11'])[0].notRecomputed).toBe(true)
+  })
+
+  it('drops the tag for a live value adjust of the line itself, and brings it back once that adjust is reverted', () => {
+    const agi: ActInput = {
+      type: 'adjust', target: 'F1040.11',
+      body: { field: 'value', to: 433190, reason: 'AGI re-keyed by hand after the Paywell change', evidence: ['D14'] },
+    }
+    const adjusted = play([['st-01', adjustSchC], ['st-01', agi]])
+    expect(adjusted.claims['F1040.11'].flags).toContain('stale')
+    expect(keyLines(model, adjusted, ['F1040.11'])[0].notRecomputed).toBe(false)
+    const seq = adjusted.adjusts.find((v) => v.target === 'F1040.11' && v.field === 'value')!.seq
+    const revert: ActInput = { type: 'revert', target: `act:${seq}`, body: { reason: 'Back to the engine figure' } }
+    const reverted = play([['st-01', adjustSchC], ['st-01', agi], ['st-01', revert]])
+    expect(reverted.claims['F1040.11'].flags).toContain('stale')
+    expect(reverted.adjusts.find((v) => v.seq === seq)?.reverted).toBe(true)
+    expect(keyLines(model, reverted, ['F1040.11'])[0].notRecomputed).toBe(true)
   })
 })

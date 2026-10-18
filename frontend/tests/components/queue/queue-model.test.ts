@@ -11,7 +11,7 @@ import { identities } from '@/lib/model/viewer'
 import { maskPacket } from '@/lib/server/mask'
 import {
   type Filters, type GroupKey, type Queue, acceptInputs, acceptLevel, buildQueue, chunk, collapseToRoots, disposeInputs,
-  groupOf, lastUndoTarget, nextAction, openFindings, parseFilters,
+  groupOf, lastUndoTarget, listRegainsFocus, nextAction, openFindings, parseFilters,
 } from '@/components/queue/queue-model'
 import { actsOf, readPacket } from '../records/fixture'
 
@@ -331,6 +331,16 @@ describe('bulk and undo', () => {
     const r = act('st-01', 'revert', 'batch:b9', { reason: 'oops' })
     expect(lastUndoTarget([a1, a2, r], 'st-01')).toBeNull()
     expect(lastUndoTarget([a1, a2, r], 'st-02')).toBe(`act:${a2.seq}`)
+  })
+
+  // The bulk bar unmounts with its last pick (Clear, or a Dispose or an Accept that landed). Focus inside it falls to <body>,
+  // where the queue's keys never run (keys.ts), so the worklist takes it back: then, and only then.
+  it('hands focus back to the worklist only when the last pick goes while focus is on <body>', () => {
+    expect(listRegainsFocus(2, 0, true)).toBe(true)
+    expect(listRegainsFocus(1, 0, true)).toBe(true)
+    expect(listRegainsFocus(0, 0, true)).toBe(false) // nothing was picked (the first mount starts at 0)
+    expect(listRegainsFocus(2, 0, false)).toBe(false) // focus is somewhere else: it stays there
+    expect(listRegainsFocus(2, 1, true)).toBe(false) // the bar is still up
   })
 })
 

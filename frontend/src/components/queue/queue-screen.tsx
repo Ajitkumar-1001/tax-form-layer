@@ -9,7 +9,7 @@ import { SearchIcon } from 'lucide-react'
 import { refHref } from '@/components/atoms'
 import { useOpenAct } from '@/components/acts/act-host'
 import { type DispositionT, type LevelT, fixToRequest } from '@/components/acts/draft'
-import { takesQueueKeys } from '@/components/shell/keys'
+import { inertButton, takesQueueKeys } from '@/components/shell/keys'
 import { CLAIM_DRAWER_TITLE_ID } from '@/components/trace/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,7 +26,7 @@ import { BulkBar } from './bulk-bar'
 import { ClaimDrawer, canClose, closeAction, drawerEntry, keepsDrawerMark, openWrite } from './claim-drawer'
 import {
   GROUPS, type GroupKey, type Row, type TiedRow,
-  acceptInputs, acceptLevel, buildQueue, chunk, disposeInputs, lastUndoTarget, parseFilters,
+  acceptInputs, acceptLevel, buildQueue, chunk, disposeInputs, lastUndoTarget, listRegainsFocus, parseFilters,
 } from './queue-model'
 import { GroupView, RowView, countLabel } from './queue-rows'
 
@@ -346,8 +346,11 @@ export function QueueScreen() {
   }
 
   const onKey = useEffectEvent((e: KeyboardEvent) => {
-    if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return
+    if (e.metaKey || e.ctrlKey || e.altKey) return
     const el = e.target instanceof Element ? e.target : null
+    // A key another component handled stays its own, but not on a refused drawer button that keeps focus: Base UI prevents
+    // every key there but Tab (keys.ts, inertButton).
+    if (e.defaultPrevented && !inertButton(el)) return
     // Only inside the worklist or the drawer, never in a field, on a Select trigger or in an overlay (rule 13, keys.ts).
     if (!takesQueueKeys(el)) return
     const row = cursorRow
@@ -382,6 +385,14 @@ export function QueueScreen() {
     window.addEventListener('keydown', listener)
     return () => window.removeEventListener('keydown', listener)
   }, [])
+  // The bulk bar unmounts with the last pick (Clear, or a Dispose or an Accept that landed) and drops the focus inside it on
+  // <body>, where the keys never run: the worklist takes it back (listRegainsFocus). From 0, so the first mount moves nothing.
+  const hadPicks = useRef(0)
+  useEffect(() => {
+    const prev = hadPicks.current
+    hadPicks.current = shownPicks.length
+    if (listRegainsFocus(prev, shownPicks.length, document.activeElement === document.body)) worklist.current?.focus({ preventScroll: true })
+  }, [shownPicks.length])
 
   const handlers = { onSelect: select, onOpen: openFull, onPick: togglePick, onCursor: pointAt }
   const filtered = filters.area !== null || filters.mine || filters.q.trim() !== ''

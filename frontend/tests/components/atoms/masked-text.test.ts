@@ -92,7 +92,7 @@ function classesOf(html: string, tag: RegExp): string[] {
 }
 
 // Reset the host's face (mono, semibold, 20 px) and give both buttons a pseudo-element hit area that grows vertically only.
-const BUTTON_RESET = ['font-sans', 'font-normal', 'cursor-pointer', 'relative', 'after:absolute', 'after:inset-x-0', 'after:-inset-y-1', 'pointer-coarse:after:-inset-y-2']
+const BUTTON_RESET = ['font-sans', 'font-normal', 'cursor-pointer', 'relative', 'after:absolute', 'after:inset-x-0', 'after:-inset-y-1']
 
 /** What authorize() says to st-04, who has no sensitive-data clearance, when Reveal is pressed. */
 function refusalForSt04(): string {
@@ -233,6 +233,14 @@ describe('MaskedText', () => {
     for (const c of ['basis-full', 'text-muted-foreground']) expect(status, c).toContain(c)
     expect(status).not.toContain('text-destructive')
     expect(html).toContain('Reveal<span class="sr-only"> ssn ending 3309</span>')
+  })
+
+  // Masked tokens on consecutive lines (the JSON lines of /r/household) sit about 20 px apart with 16 px buttons: a strip
+  // taller than 24 px reaches past the gap, and a tap at the bottom of one button revealed (and logged) the next line's value.
+  it('keeps the hit-area strip 24 px tall on every pointer, touch included', () => {
+    const reveal = classesOf(flat(render(h(MaskedText, { text: makeToken('ssn', '3309', 'a'), context: 'x' }))), BUTTON)
+    expect(reveal).toContain('after:-inset-y-1')
+    expect(reveal.filter((c) => c.startsWith('pointer-coarse:after:'))).toEqual([])
   })
 
   it('underlines Reveal on hover only while it can act', () => {

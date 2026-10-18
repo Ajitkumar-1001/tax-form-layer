@@ -47,4 +47,15 @@ describe('focusReturn', () => {
     await Promise.resolve()
     expect(marker.focus).not.toHaveBeenCalled()
   })
+
+  // u on the queue with no cursor row opens the Revert form from the worklist section, which is its own marker. Base UI
+  // would hand focus to the section's first tabbable child, the search box, where the next j would type.
+  it('treats an opener that is its own marker like a gone one: the marker is focused after the close', async () => {
+    const section = { ...opener(true), focus: vi.fn() }
+    expect(returnFocusTo({ el: section, back: section })).toBe(section)
+    expect(focusReturn({ el: section, back: section })).toBe(false)
+    await Promise.resolve()
+    expect(section.focus).toHaveBeenCalledTimes(1)
+    expect(section.focus).toHaveBeenCalledWith({ preventScroll: true })
+  })
 })

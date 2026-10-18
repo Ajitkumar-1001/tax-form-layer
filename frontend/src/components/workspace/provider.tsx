@@ -20,7 +20,7 @@ import * as api from './api'
 import { WorkspaceContext, WorkspaceLoading } from './context'
 import { describeActs, mergeActs, offerUndo, readSeen, undoInput, writeSeen } from './log'
 import { PageSkeleton, TopBarSkeleton } from './skeleton'
-import type { PostResult, Workspace } from './types'
+import { type PostOptions, type PostResult, refusalQuiet, type Workspace } from './types'
 
 const POLL_MS = 3000
 
@@ -149,17 +149,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   // `quiet` suppresses every toast (success and refusal): the caller shows the result itself, e.g. inline in a form.
   // `quietRefusal` suppresses only the refusal toast, for a form that prints the reason itself but still wants the
-  // success toast and its Undo.
+  // success toast and its Undo. A function is asked when the refusal arrives (refusalQuiet, after the await), so a form
+  // closed while its post was in flight still gets the toast.
   // `undoLabel` replaces the success toast text. base_seq is the poll cursor (see `polled`), read from a ref so a
   // late Undo is not stale. The pull is awaited so the next post's base_seq already covers this one and any gap.
-  async function post(inputs: ActInput[], opts: { quiet?: boolean; quietRefusal?: boolean; undoLabel?: string } = {}): Promise<PostResult> {
+  async function post(inputs: ActInput[], opts: PostOptions = {}): Promise<PostResult> {
     const body = PostActsZ.safeParse({ engagement: eng, acts: inputs, base_seq: polled.current })
-    if (!body.success) return refuse(400, `Not sent: ${z.prettifyError(body.error)}`, opts.quiet || opts.quietRefusal)
+    if (!body.success) return refuse(400, `Not sent: ${z.prettifyError(body.error)}`, refusalQuiet(opts))
     const held = latest.current?.engagement === eng ? latest.current.acts : []
     const sent = await settle(api.postActs(body.data))
     if (!sent.ok) {
       void pull.current()
-      return refuse(sent.error instanceof api.ApiError ? sent.error.status : 0, api.message(sent.error), opts.quiet || opts.quietRefusal)
+      return refuse(sent.error instanceof api.ApiError ? sent.error.status : 0, api.message(sent.error), refusalQuiet(opts))
     }
     const acts = sent.value
     setLog((prev) => (prev?.engagement === eng ? { engagement: eng, acts: mergeActs(prev.acts, acts) } : prev))

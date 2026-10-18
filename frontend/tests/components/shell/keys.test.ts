@@ -1,14 +1,15 @@
 // The single-key shortcut guards. Node has no DOM, so the elements are stubs: a tag, attributes and a parent, with
-// closest/matches for what keys.ts asks (comma lists of tag names, [attr] and [attr="value"]).
+// closest/matches for what keys.ts asks (comma lists of tag names, [attr] and [attr="value"], the last two optionally after
+// a tag name: button[aria-disabled="true"]).
 import { describe, expect, it } from 'vitest'
-import { type ElLike, inOverlay, isTypingTarget, takesQueueKeys, takesTypeahead } from '@/components/shell/keys'
+import { type ElLike, inertButton, inOverlay, isTypingTarget, takesQueueKeys, takesTypeahead } from '@/components/shell/keys'
 
 type Stub = NonNullable<ElLike>
 
 function el(tag: string, attrs: Record<string, string> = {}, parent: Stub | null = null): Stub {
   const one = (sel: string): boolean => {
-    const a = /^\[([\w-]+)(?:="([^"]*)")?\]$/.exec(sel)
-    if (a) return a[2] === undefined ? a[1] in attrs : attrs[a[1]] === a[2]
+    const a = /^([a-z]*)\[([\w-]+)(?:="([^"]*)")?\]$/.exec(sel)
+    if (a) return (!a[1] || a[1] === tag) && (a[3] === undefined ? a[2] in attrs : attrs[a[2]] === a[3])
     return sel === tag
   }
   const matches = (list: string): boolean => list.split(',').some((s) => one(s.trim()))
@@ -128,5 +129,17 @@ describe('takesQueueKeys', () => {
     ]
     for (const [name, x] of [...outside, ...standAside]) expect(takesQueueKeys(x), name).toBe(false)
     for (const [name, x] of inside) expect(takesQueueKeys(x), name).toBe(true)
+  })
+})
+
+// A refused toolbar button in the claim drawer keeps focus (rule 2), and Base UI's focusableWhenDisabled prevents the
+// default of every key but Tab on it. That is not another component claiming the key, so the queue's keys still run there.
+describe('inertButton', () => {
+  it('is true on a refused (aria-disabled) button, and false on a plain button, a link and no target', () => {
+    expect(inertButton(el('button', { 'aria-disabled': 'true' }, drawer))).toBe(true)
+    expect(inertButton(el('button', {}, drawer))).toBe(false)
+    expect(inertButton(el('a', {}, drawer))).toBe(false)
+    expect(inertButton(el('a', { 'aria-disabled': 'true' }, drawer))).toBe(false)
+    expect(inertButton(null)).toBe(false)
   })
 })

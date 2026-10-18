@@ -191,9 +191,12 @@ function WhatIfPanel({ id }: { id: string }) {
           </span>
         )}
       </div>
-      <ActButton type="decide" target={`whatif:${id}`} prefill={{ kind: 'election', what_if: id }} size="sm" className="print:hidden">
-        Adopt…
-      </ActButton>
+      {/* A refused ActButton prints its reason beside the button, outside the button's own class: hide both on paper. */}
+      <div className="print:hidden">
+        <ActButton type="decide" target={`whatif:${id}`} prefill={{ kind: 'election', what_if: id }} size="sm" className="print:hidden">
+          Adopt…
+        </ActButton>
+      </div>
     </section>
   )
 }

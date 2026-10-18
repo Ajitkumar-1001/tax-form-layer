@@ -234,7 +234,12 @@ describe('client copy', () => {
     expect(t).not.toContain('Changes since the software computed it (estimate)')
     // The adjusted total holds the person's figure and is untagged; the line it feeds is tagged.
     expect(t).toContain('Total income 468,587 F1040.11 Adjusted gross income 445,590 not recomputed')
-    expect(t).toContain('The tax software has not recomputed this return since our changes.')
+    // No change reached the refund or balance due, so the footnote says it is the software's figure from before the changes,
+    // and claims nothing about every change being in it, nor about "Changes since…" lines that do not render here.
+    expect(t).toContain(
+      'The tax software has not recomputed this return since our changes. Lines marked “not recomputed” are its figures from before them, and so is the refund or balance due: it does not yet reflect those changes.',
+    )
+    expect(t).not.toContain('includes every change')
   })
 })
 

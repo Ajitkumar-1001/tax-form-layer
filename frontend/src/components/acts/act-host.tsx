@@ -20,12 +20,14 @@ const ActHostContext = createContext<OpenAct>(() => {})
 /**
  * Where focus goes when the act dialog closes: the opener's nearest `[data-focus-return]` ancestor (`back`, found when
  * the dialog opened) when the opener is gone or disabled (a Sign that unmounted, a Submit replaced by its refused form)
- * and that ancestor is still in the page; otherwise true, Base UI's default (back to the opener).
+ * and that ancestor is still in the page; otherwise true, Base UI's default (back to the opener). An opener that is
+ * itself the marker (the queue's worklist section, for u with no cursor row) counts as gone: Base UI would move focus on
+ * to its first tabbable child, the search box.
  */
 export function returnFocusTo<B extends { isConnected: boolean }>(
   o: { el: Pick<Element, 'isConnected' | 'matches'>; back: B | null } | null,
 ): B | true {
-  if (!o || (o.el.isConnected && !o.el.matches(':disabled'))) return true
+  if (!o || (o.el.isConnected && !o.el.matches(':disabled') && (o.el as unknown) !== o.back)) return true
   return o.back?.isConnected ? o.back : true
 }
 

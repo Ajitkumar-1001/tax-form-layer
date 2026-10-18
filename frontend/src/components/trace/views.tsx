@@ -155,7 +155,7 @@ export function NoteThread({ note, byline = false }: { note: NoteView; byline?: 
   const acts = NOTE_ACTS.map((a) => ({ ...a, auth: canOpen({ type: a.type, target: ref }, ws).auth }))
   const reasons = [...new Set(acts.flatMap(({ auth }) => (auth.ok ? [] : [auth.reason])))]
   return (
-    <div className={cn('flex min-w-0 flex-col gap-2', byline && 'rounded-md border p-3')}>
+    <div className={cn('flex min-w-0 flex-col gap-2 wrap-anywhere', byline && 'rounded-md border p-3')}>
       {byline && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>{NOTE_KIND_LABEL[note.kind]} by {who(note.actor)}{note.to && <> to {who(note.to)}</>}</span>

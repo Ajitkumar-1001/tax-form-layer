@@ -25,6 +25,11 @@ export function takesTypeahead(el: ElLike): boolean {
   return !!el?.closest('[role="combobox"]')
 }
 
+/** A refused button that keeps focus: Base UI prevents its keys' default, which is not another component claiming the key. */
+export function inertButton(el: ElLike): boolean {
+  return !!el?.matches('button[aria-disabled="true"]')
+}
+
 const QUEUE_KEY_REGIONS = '[data-worklist], [data-claim-drawer]'
 
 /** Whether a keydown on this target is the queue's (rule 13; WCAG 2.1.4: active only while its component has focus):

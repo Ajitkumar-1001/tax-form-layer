@@ -559,5 +559,11 @@ export function lastUndoTarget(acts: Act[], viewerId: string): string | null {
   return null
 }
 
+/** Whether the worklist takes focus back: the bulk bar went with the last pick (Clear, or a Dispose or an Accept that landed)
+ *  and took focus with it to <body>, where the queue's keys never run (keys.ts, takesQueueKeys). */
+export function listRegainsFocus(hadPicks: number, picks: number, bodyFocused: boolean): boolean {
+  return hadPicks > 0 && picks === 0 && bodyFocused
+}
+
 /** Chunks of at most `n` (POST /api/acts takes 300 acts per batch). */
 export const chunk = <T>(xs: T[], n = 300): T[][] => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n))
