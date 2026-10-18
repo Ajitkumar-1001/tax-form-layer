@@ -8,8 +8,8 @@ import type { Packet } from '@/lib/model/packet-types'
 import { project } from '@/lib/model/project'
 import { viewerOf } from '@/lib/model/viewer'
 import {
-  actFiles, attachmentsFor, claimFindingIds, decodeRefParam, findingsCiting, groupEvidence, historyFor, linkedComms, netEffect, pageRefForms, resolveRef,
-  signoffsCovering, valueRows, viewLogFor, whatIfsTouching,
+  actFiles, attachmentsFor, claimFindingIds, decodeRefParam, findingsCiting, groupEvidence, historyFor, linkedComms, netEffect, pageRefForms, provenanceOf,
+  resolveRef, signoffsCovering, valueRows, viewLogFor, whatIfsTouching,
 } from '@/components/trace/resolve'
 
 const packet = JSON.parse(readFileSync(path.join(__dirname, '../../../data/okafor_lindqvist_2025_packet.json'), 'utf8')) as Packet
@@ -26,6 +26,17 @@ describe('decodeRefParam', () => {
     expect(decodeRefParam(['py:', 'prior_preparer_workpaper', 'notes', '0'])).toBe('py:/prior_preparer_workpaper/notes/0')
     expect(decodeRefParam(['%E0%A4%A'])).toBe('%E0%A4%A')
     expect(decodeRefParam(undefined)).toBe('')
+  })
+})
+
+describe('provenanceOf', () => {
+  it('labels engine constants, unsourced and client-only lines from CHK-24 on the real packet', () => {
+    const p = (k: string) => provenanceOf(model, model.claims[k])
+    for (const k of ['SchB.8', 'F4797.26g', 'SchD.18', 'F8960.14']) expect(p(k), k).toEqual({ kind: 'engine' })
+    expect(p('F540NR.73')).toEqual({ kind: 'unsourced', finding: 'chk:CHK-24:F540NR.73' })
+    for (const k of ['Sch3.10', 'SchE.9A', 'F540NR.39']) expect(p(k), k).toEqual({ kind: 'client', finding: `chk:CHK-24:${k}` })
+    expect(p('F1040.26').kind).toBe('documents')
+    expect(p('F1040.24').kind).toBe('inputs')
   })
 })
 

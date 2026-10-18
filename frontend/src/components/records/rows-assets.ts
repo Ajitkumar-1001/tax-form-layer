@@ -1,7 +1,7 @@
 // Records over multi-year data: depreciation by asset, carryovers in → out, and basis chains.
 import type { Model } from '@/lib/model/build'
 import type { State } from '@/lib/model/state'
-import { type Banner, type Builder, type Column, type Group, type Row, diff, link, money, num, openCount, round2, text } from './table'
+import { type Banner, type Builder, type Column, type Group, type Row, diff, link, links, money, num, openCount, round2, text } from './table'
 
 const v3Of = (model: Model) => model.packet.return_versions[model.packet.return_versions.length - 1]
 const sumYears = (r: Record<string, number> | undefined) => round2(Object.values(r ?? {}).reduce((s, n) => s + (num(n) ?? 0), 0))
@@ -83,6 +83,14 @@ const CARRY_FORMS: [RegExp, string[]][] = [
   [/depreciation/, ['FTB3885A', 'F4562-C', 'F4562-E']],
 ]
 const ALIAS: Record<string, string> = { amt_credit: 'minimum_tax_credit_from_2025_amt' }
+/** California carries one combined figure out for capital loss and for passive, so its 2024 parts fold into one row each. */
+const CA_ALIAS: Record<string, string> = {
+  ...ALIAS,
+  capital_loss_short: 'capital_loss',
+  capital_loss_long: 'capital_loss',
+  passive_1450_fremont: 'passive',
+  passive_1200_barton_hills: 'passive',
+}
 
 /** True when a live adjust (or a stale flag) sits on a line of a form feeding this carryover. */
 export function carryStale(model: Model, state: State, key: string): boolean {
@@ -93,25 +101,31 @@ export function carryStale(model: Model, state: State, key: string): boolean {
     Object.values(state.claims).some((c) => c.flags.includes('stale') && forms.includes(formOf(c.id)))
 }
 
-function carryRows(model: Model, state: State, into: Record<string, unknown>, out: Record<string, unknown>, prefix: string): Row[] {
+function carryRows(model: Model, state: State, into: Record<string, unknown>, out: Record<string, unknown>, prefix: string, alias: Record<string, string>): Row[] {
   const inKeys = Object.keys(into).filter((k) => typeof into[k] === 'number')
   const outKeys = Object.keys(out).filter((k) => typeof out[k] === 'number')
-  const keys = [...new Set([...inKeys.map((k) => ALIAS[k] ?? k), ...outKeys])]
+  const keys = [...new Set([...inKeys.map((k) => alias[k] ?? k), ...outKeys])]
+  const words = (k: string) => k.replaceAll('_', ' ')
   return keys.map((k): Row => {
-    const inKey = inKeys.find((x) => (ALIAS[x] ?? x) === k)
-    const i = inKey ? num(into[inKey]) : null
+    const ins = inKeys.filter((x) => (alias[x] ?? x) === k)
+    const i = ins.length ? round2(ins.reduce((s, x) => s + (num(into[x]) ?? 0), 0)) : null
     const o = num(out[k])
     const stale = carryStale(model, state, k)
-    const used = i !== null ? round2(i - (o ?? 0)) : null
+    // More can't be used than came in; a carryover that grew during 2025 shows 0 used, never a negative.
+    const used = i === null ? null : round2(Math.max(0, i - (o ?? 0)))
+    const refs = ins.map((x) => `py:/carryovers_into_2025/${prefix ? 'california/' : ''}${x}`)
+    const note = ins.length > 1 ? `2024: ${ins.map((x) => `${words(x)} ${(num(into[x]) ?? 0).toLocaleString('en-US')}`).join(' + ')}`
+      : i !== null && o !== null && o > i ? `${round2(o - i).toLocaleString('en-US')} arose in 2025`
+        : i !== null && o === null ? 'not carried out' : o !== null && i === null ? 'new in 2025' : null
     return {
       key: `${prefix}${k}`,
       exception: stale || (i !== null && o === null) || Boolean(i && o === 0 && used),
       cells: [
-        inKey ? link(`py:/carryovers_into_2025/${prefix ? 'california/' : ''}${inKey}`, k.replaceAll('_', ' ')) : text(k.replaceAll('_', ' ')),
+        refs.length > 1 ? links(refs, words(k)) : refs.length ? link(refs[0], words(k)) : text(words(k)),
         money(i),
         money(used),
         money(o),
-        text(i !== null && o === null ? 'not carried out' : o !== null && i === null ? 'new in 2025' : null, 'muted'),
+        text(note, 'muted'),
         text(stale ? 'stale: an input was adjusted' : null, 'warn'),
       ],
     }
@@ -128,8 +142,8 @@ export const carryovers: Builder = (model, state) => {
   return {
     columns: [{ label: 'Carryover' }, { label: 'In (2024)', money: true }, { label: 'Used', money: true }, { label: 'Out (v3)', money: true }, { label: 'Note' }, { label: 'Stale' }],
     groups: [
-      { key: 'federal', title: 'Federal', rows: carryRows(model, state, into, v3.carryovers_out.federal, '') },
-      { key: 'california', title: 'California', rows: carryRows(model, state, caIn, caOut, 'ca:') },
+      { key: 'federal', title: 'Federal', rows: carryRows(model, state, into, v3.carryovers_out.federal, '', ALIAS) },
+      { key: 'california', title: 'California', rows: carryRows(model, state, caIn, caOut, 'ca:', CA_ALIAS) },
       {
         key: 'ca-dep',
         title: 'California depreciation basis differences (out)',

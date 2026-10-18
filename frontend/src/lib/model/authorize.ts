@@ -1,12 +1,12 @@
 // authorize(model, state, input, actor): the firm rules, enforced. Shared by the browser (to disable
 // buttons and say why) and the server (the only enforcer, inside the POST transaction).
-import type { Act, ActInput } from './acts'
+import { type Act, type ActInput, DUE_DILIGENCE_QUESTIONS } from './acts'
 import type { Model } from './build'
 import type { Val } from './claims'
 import type { Jurisdiction } from './packet-types'
 import { AREAS } from './ids'
 import { sameValue } from './mask-token'
-import { type Body, RANK, claimsOfRef, indexActs, preparedRefs, revertTargets, scopeOf, seasonInstant, whatIfCites } from './project'
+import { type Body, RANK, claimsOfRef, findingsClearedBy, indexActs, preparedRefs, revertTargets, scopeOf, seasonInstant, whatIfCites } from './project'
 import type { AuthResult, NoteView, Reason, State, Viewer } from './state'
 import { identities } from './viewer'
 
@@ -102,7 +102,17 @@ export function authorize(model: Model, state: State, input: ActInput, actor: Vi
       }
       // Answering an agency notice is allowed on a filed claim (it changes no return value); listed findings still freeze.
       const notice = input.type === 'decide' && input.body.kind === 'notice_response'
-      return orOk(findingsRefusal(model, state, input, actor) ?? (notice ? null : frozenFor(model, state, t)))
+      // Last, so refusals typing cannot fix (a listed finding, the freeze) win over a missing authority.
+      const judged = input.type === 'dispose' && !input.body.authority?.trim() ? judgmentFindings(model, state, input).length : 0
+      const needsAuthority = judged
+        ? `Disposing ${t} clears ${judged === 1 ? 'a finding that asks' : `${judged} findings that ask`} for a decision; record the authority relied on, or record the decision instead.`
+        : null
+      // Form 8867: every question answered ('no' and 'n/a' count); a partial checklist would clear the CHK-54 finding.
+      const left = input.type === 'decide' && input.body.kind === 'due_diligence'
+        ? DUE_DILIGENCE_QUESTIONS.filter((q) => !input.body.checklist?.[q.key]).length
+        : 0
+      const unanswered = left ? `Answer every Form 8867 question (${left} left).` : null
+      return orOk(findingsRefusal(model, state, input, actor) ?? (notice ? null : frozenFor(model, state, t)) ?? needsAuthority ?? unanswered)
     }
 
     case 'note': {
@@ -234,6 +244,14 @@ export function canReveal(state: State, actor: Viewer): AuthResult {
 function touchesSensitive(model: Model, ref: string): boolean {
   const ids = model.findingsById[ref]?.claims ?? claimsOfRef(model, NO_ACTS, ref)
   return ids.some((id) => model.claims[id]?.sensitive)
+}
+
+/**
+ * Findings in the file that this act would clear and whose check asks for a decision (spec §4.3): a dispose clearing one is a
+ * judgment call, so it cites an authority. A finding not yet known is left out, so neither the refusal nor the form shows it.
+ */
+export function judgmentFindings(model: Model, state: State, input: Pick<ActInput, 'type' | 'target' | 'body'>): string[] {
+  return findingsClearedBy(model, input).filter((id) => model.findingsById[id].fix?.act === 'decide' && state.findings[id]?.visible && state.findings[id].status === 'open')
 }
 
 /**

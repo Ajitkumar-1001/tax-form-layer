@@ -23,6 +23,22 @@ export const Disposition = z.enum([
   'requested', 'not_relevant', 'carried_forward', 'client_notified', 'accepted_as_is',
 ])
 export const DecideKind = z.enum(['judgment', 'election', 'due_diligence', 'penalty', 'swing_explained', 'sourcing_method', 'completeness', 'notice_response'])
+
+/** Paid-preparer due diligence (Form 8867), for the credits this return claims: CTC/ODC and AOTC. */
+export const DUE_DILIGENCE_QUESTIONS: { key: string; part: string; text: string }[] = [
+  { key: 'info_basis', part: 'All credits', text: 'Return completed from information for 2025 provided by the taxpayer or reasonably obtained or known by you?' },
+  { key: 'computations', part: 'All credits', text: 'Credit worksheets (or your own equivalent computations) completed and kept?' },
+  { key: 'knowledge', part: 'All credits', text: 'Knowledge requirement met: interviewed the taxpayer, asked adequate questions, documented the answers when asked?' },
+  { key: 'inconsistencies', part: 'All credits', text: 'Information that looked incorrect, incomplete or inconsistent was followed up and the inquiries documented?' },
+  { key: 'retention', part: 'All credits', text: 'Record retention met: this checklist and the records relied on are kept for 3 years?' },
+  { key: 'substantiation_asked', part: 'All credits', text: 'Asked whether the taxpayer can provide documents that substantiate eligibility?' },
+  { key: 'prior_disallowance', part: 'All credits', text: 'Asked whether any of these credits was disallowed or reduced in a prior year?' },
+  { key: 'ctc_dependent_ssn', part: 'CTC / ODC', text: 'Each qualifying person is the taxpayer\'s dependent and a US citizen, national or resident, with an SSN that matches the card (CTC)?' },
+  { key: 'ctc_age_relationship', part: 'CTC / ODC', text: 'Age at 12/31 and relationship verified from documents, not only the organizer?' },
+  { key: 'ctc_residency', part: 'CTC / ODC', text: 'Explained that the child must have lived with the taxpayer more than half the year (unless an exception applies)?' },
+  { key: 'ctc_divorced', part: 'CTC / ODC', text: 'Explained the rules for a child of divorced or separated parents?' },
+  { key: 'aotc_substantiation', part: 'AOTC', text: 'Form 1098-T and receipts for qualified expenses obtained, and enrollment status (box 8) supports the claim?' },
+]
 export const NoteKind = z.enum(['memo', 'question_client', 'question_staff', 'review_note'])
 export const Jur = z.enum(['federal', 'california'])
 
@@ -65,7 +81,7 @@ export const ActInputZ = z.discriminatedUnion('type', [
       ...Addresses,
     }),
   }),
-  z.object({ type: z.literal('dispose'), target: Ref, body: z.object({ disposition: Disposition, ref: Ref.optional(), reason: Text(3), ...Addresses }) }),
+  z.object({ type: z.literal('dispose'), target: Ref, body: z.object({ disposition: Disposition, ref: Ref.optional(), reason: Text(3), authority: z.string().max(500).optional(), ...Addresses }) }),
   z.object({
     type: z.literal('note'),
     target: Ref,
@@ -88,7 +104,7 @@ export const ActInputZ = z.discriminatedUnion('type', [
   z.object({ type: z.literal('file'), target: z.literal('return'), body: z.object({ kind: z.enum(['submit', 'extension']), jurisdictions: z.array(Jur).min(1) }) }),
   z.object({ type: z.literal('amend_open'), target: z.literal('return'), body: z.object({ reason: Text(10) }) }),
   z.object({ type: z.literal('revert'), target: Ref /* act:<seq> | batch:<id> */, body: z.object({ reason: Text(3) }) }),
-  z.object({ type: z.literal('assign'), target: z.string().regex(/^area:/), body: z.object({ assignee: z.string().max(20), due: z.string().max(30).optional() }) }),
+  z.object({ type: z.literal('assign'), target: z.string().regex(/^area:/), body: z.object({ assignee: z.string().max(20) }) }),
   z.object({ type: z.literal('time'), target: z.string().regex(/^area:/), body: z.object({ hours: z.number().positive().max(24), note: z.string().max(500).optional() }) }),
   z.object({ type: z.literal('clock'), target: z.literal('season'), body: z.object({ to: z.string().max(30), event: z.string().max(100).optional() }) }),
 ])

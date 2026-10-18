@@ -127,6 +127,18 @@ describe('act forms render', () => {
 
   // The idle form: Base UI writes aria-disabled only on a submit made focusableWhenDisabled, and the class shows its disabled
   // state. The Save in flight itself is seeded at the end of this file; that focus stays on the submit is the browser check's.
+  // An assignment's due date was stored and then shown nowhere, so the Assign form no longer asks for one. The Note form's
+  // due date feeds the inbox and the client portal, and keeps its field.
+  it('the Assign form has no due-date field; the Note form keeps its own', () => {
+    const assign = render({ type: 'assign', target: 'business' })
+    expect(assign).toContain('Assignee')
+    expect(assign).not.toContain('type="date"')
+    expect(assign).not.toContain('Due (optional)')
+    const note = render({ type: 'note', target: 'F1040.19' })
+    expect(note).toContain('type="date"')
+    expect(note).toContain('Due (optional)')
+  })
+
   it('builds the idle submit focusable-when-disabled (aria-disabled="false", data-disabled styling, never disabled="")', () => {
     const html = render({ type: 'adjust', target: 'F8949.B.N1', prefill: { field: 'basis', to: 19100 } })
     const tag = html.match(/<button type="submit"[^>]*>/)?.[0] ?? ''

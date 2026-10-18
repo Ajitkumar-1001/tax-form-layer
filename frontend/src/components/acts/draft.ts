@@ -2,8 +2,9 @@
 // No React here, so it runs under the node-only vitest config.
 import { z } from 'zod'
 import {
-  type ActInput, type AdjustDerived, AdjustFieldZ, DecideKind, Disposition, Jur, Level, NoteKind, VerifyMethod,
+  type ActInput, type AdjustDerived, AdjustFieldZ, DUE_DILIGENCE_QUESTIONS, DecideKind, Disposition, Jur, Level, NoteKind, VerifyMethod,
 } from '@/lib/model/acts'
+import { judgmentFindings } from '@/lib/model/authorize'
 import type { Model } from '@/lib/model/build'
 import type { Val } from '@/lib/model/claims'
 import type { Finding } from '@/lib/model/checks/types'
@@ -122,21 +123,8 @@ export const RESOLUTION_LABEL: Record<ResolutionT, string> = {
   not_applicable: 'Not applicable',
 }
 
-/** Paid-preparer due diligence (Form 8867), for the credits this return claims: CTC/ODC and AOTC. */
-export const DUE_DILIGENCE_QUESTIONS: { key: string; part: string; text: string }[] = [
-  { key: 'info_basis', part: 'All credits', text: 'Return completed from information for 2025 provided by the taxpayer or reasonably obtained or known by you?' },
-  { key: 'computations', part: 'All credits', text: 'Credit worksheets (or your own equivalent computations) completed and kept?' },
-  { key: 'knowledge', part: 'All credits', text: 'Knowledge requirement met: interviewed the taxpayer, asked adequate questions, documented the answers when asked?' },
-  { key: 'inconsistencies', part: 'All credits', text: 'Information that looked incorrect, incomplete or inconsistent was followed up and the inquiries documented?' },
-  { key: 'retention', part: 'All credits', text: 'Record retention met: this checklist and the records relied on are kept for 3 years?' },
-  { key: 'substantiation_asked', part: 'All credits', text: 'Asked whether the taxpayer can provide documents that substantiate eligibility?' },
-  { key: 'prior_disallowance', part: 'All credits', text: 'Asked whether any of these credits was disallowed or reduced in a prior year?' },
-  { key: 'ctc_dependent_ssn', part: 'CTC / ODC', text: 'Each qualifying person is the taxpayer\'s dependent and a US citizen, national or resident, with an SSN that matches the card (CTC)?' },
-  { key: 'ctc_age_relationship', part: 'CTC / ODC', text: 'Age at 12/31 and relationship verified from documents, not only the organizer?' },
-  { key: 'ctc_residency', part: 'CTC / ODC', text: 'Explained that the child must have lived with the taxpayer more than half the year (unless an exception applies)?' },
-  { key: 'ctc_divorced', part: 'CTC / ODC', text: 'Explained the rules for a child of divorced or separated parents?' },
-  { key: 'aotc_substantiation', part: 'AOTC', text: 'Form 1098-T and receipts for qualified expenses obtained, and enrollment status (box 8) supports the claim?' },
-]
+// The Form 8867 questions live with the act schema, so authorize() and the step rules enforce the same list.
+export { DUE_DILIGENCE_QUESTIONS } from '@/lib/model/acts'
 
 /** Levels a role may act at, default first. Empty: the role has no review level (authorize says why). */
 export function levelsFor(role: Role): LevelT[] {
@@ -221,6 +209,7 @@ export function fixToRequest(f: Finding): OpenActRequest {
   if (field !== undefined) prefill.field = field
   if (to !== undefined) prefill[act === 'decide' ? 'choice' : 'to'] = to // a decide fix's value is the suggested answer
   if (act === 'decide' && f.check === 'CHK-49') prefill.kind = 'completeness' // answering a required entry
+  if (act === 'decide' && f.id === 'chk:CHK-38:penalty') prefill.kind = 'penalty' // step 7 needs a penalty decision, not a judgment
   if (disposition !== undefined) prefill.disposition = disposition
   const disp = Disposition.safeParse(disposition)
   const other = ref ?? (disp.success && DISPOSITION_NEEDS_REF.has(disp.data)
@@ -318,7 +307,7 @@ export function buildInput(req: OpenActRequest, d: Draft, state: State): ActInpu
         },
       }
     case 'dispose':
-      return { type: 'dispose', target: t, body: { disposition: d.disposition, ref: optional(d.ref), reason: d.reason, findings } }
+      return { type: 'dispose', target: t, body: { disposition: d.disposition, ref: optional(d.ref), reason: d.reason, authority: optional(d.authority), findings } }
     case 'note':
       return {
         type: 'note', target: t,
@@ -346,7 +335,7 @@ export function buildInput(req: OpenActRequest, d: Draft, state: State): ActInpu
     case 'revert':
       return { type: 'revert', target: t, body: { reason: d.reason } }
     case 'assign':
-      return { type: 'assign', target: t, body: { assignee: d.assignee, due: optional(d.due) } }
+      return { type: 'assign', target: t, body: { assignee: d.assignee } }
     case 'time':
       return { type: 'time', target: t, body: { hours: parseAmount(d.hours) ?? Number.NaN, note: optional(d.timeNote) } }
     case 'clock':
@@ -382,8 +371,13 @@ export function issuesByField(issues: readonly Issue[]): Record<string, string> 
   return out
 }
 
-/** Rules the schema cannot express because they depend on what the form is editing. */
-export function formErrors(req: OpenActRequest, d: Draft, state: State): Record<string, string> {
+/** A dispose that would clear an open finding asking for a decision must cite an authority (authorize() refuses it blank). */
+export function disposeNeedsAuthority(req: OpenActRequest, d: Draft, state: State, model: Model): boolean {
+  return req.type === 'dispose' && judgmentFindings(model, state, buildInput(req, d, state)).length > 0
+}
+
+/** Rules the schema cannot express because they depend on what the form is editing. Pass the model to judge a dispose's authority. */
+export function formErrors(req: OpenActRequest, d: Draft, state: State, model?: Model): Record<string, string> {
   const e: Record<string, string> = {}
   if (req.type === 'verify' && !d.method) e.method = 'Choose how you checked it'
   if (req.type === 'adjust') {
@@ -402,6 +396,7 @@ export function formErrors(req: OpenActRequest, d: Draft, state: State): Record<
   if (req.type === 'attach' && !d.text.trim() && !d.file) e.text = 'Paste text or choose a file'
   if (req.type === 'time' && parseAmount(d.hours) === null) e.hours = 'Enter hours, e.g. 1.5'
   if (req.type === 'resolve' && req.target.startsWith('chk:') && !d.authority.trim()) e.authority = 'Cite the authority or firm policy relied on'
+  if (model && !d.authority.trim() && disposeNeedsAuthority(req, d, state, model)) e.authority = 'Cite the authority or firm policy relied on'
   if (req.type === 'clock' && Number.isNaN(Date.parse(d.clockTo))) e.to = 'Enter a date and time, e.g. 2027-01-04T09:00:00Z'
   return e
 }
@@ -425,7 +420,7 @@ function standInTo(field: AdjustFieldT, current: Val): string {
  * Pass the model so an adjust citing a what-if stands in the what-if's value (canOpen does); screens should call canOpen.
  */
 export function probeDraft(req: OpenActRequest, d: Draft, state: State, model?: Model): Draft {
-  const e = formErrors(req, d, state)
+  const e = formErrors(req, d, state, model)
   const patch: Partial<Draft> = {}
   if (req.type === 'adjust' && e.to) {
     // A cited what-if prices only the value it moves this line to, so that value is the one stand-in it accepts.
@@ -433,7 +428,8 @@ export function probeDraft(req: OpenActRequest, d: Draft, state: State, model?: 
     patch.to = line && d.field === 'value' ? String(line.new) : standInTo(d.field, state.claims[req.target]?.effective ?? null)
   }
   if (req.type === 'dispose' && e.ref) patch.ref = PROBE
-  if (e.authority) patch.authority = PROBE // resolving a finding: authorize() refuses a blank authority
+  if (e.authority) patch.authority = PROBE // resolving a finding or disposing a judgment one: authorize() refuses a blank authority
+  if (e.checklist) patch.checklist = Object.fromEntries(DUE_DILIGENCE_QUESTIONS.map((q) => [q.key, 'yes' as const])) // authorize() refuses a partial Form 8867
   if (req.type === 'clock' && e.to) patch.clockTo = new Date(Date.parse(state.clock) + 86_400_000).toISOString()
   return { ...d, ...patch }
 }

@@ -13,7 +13,7 @@ import type { State } from '@/lib/model/state'
 import { viewerOf } from '@/lib/model/viewer'
 import type { OpenActRequest } from '@/components/workspace/types'
 import {
-  DUE_DILIGENCE_QUESTIONS, RESOLUTION_LABEL, type Draft, buildInput, canOpen, fixToRequest, formErrors, initialDraft, issuesByField,
+  DUE_DILIGENCE_QUESTIONS, RESOLUTION_LABEL, type Draft, buildInput, canOpen, disposeNeedsAuthority, fixToRequest, formErrors, initialDraft, issuesByField,
   levelsFor, normalizeRequest, parseAmount, parseTo, previewAdjust, probeDraft, proposalText, suggestMethod,
 } from '@/components/acts/draft'
 
@@ -172,6 +172,20 @@ describe('authorization probe (review must-fix 1)', () => {
     const dd = { ...initialDraft(r, model, state), disposition: 'duplicate_of' as const, ref: 'D11', reason: 'same 1099' }
     expect(probeDraft(r, dd, state, model)).toEqual(dd)
   })
+  it('a dispose that clears a judgment finding asks for an authority and stays enabled while it is blank', () => {
+    expect(model.findingsById['chk:CHK-26:SchC.1'].fix?.act).toBe('decide')
+    const req: OpenActRequest = { type: 'dispose', target: 'SchC.1' }
+    const d = { ...initialDraft(req, model, state), reason: 'Reviewed; no change' }
+    expect(formErrors(req, d, state, model).authority).toBe('Cite the authority or firm policy relied on')
+    expect(formErrors(req, d, state).authority).toBeUndefined()
+    const other: OpenActRequest = { type: 'dispose', target: 'D12' }
+    expect(formErrors(other, { ...initialDraft(other, model, state), reason: 'Reviewed; no change' }, state, model).authority).toBeUndefined()
+    expect(disposeNeedsAuthority(req, d, state, model)).toBe(true)
+    expect(disposeNeedsAuthority(other, initialDraft(other, model, state), state, model)).toBe(false)
+    const ws = { model, state, can: (i: ActInput) => authorize(model, state, i, preparer) }
+    expect(canOpen(req, ws).auth).toEqual({ ok: true })
+    expect(buildInput(req, { ...d, authority: '  IRC §61  ' }, state).body).toMatchObject({ authority: 'IRC §61' })
+  })
   it('a note addressed to no one is not stood in for (authorize allows it)', () => {
     const req: OpenActRequest = { type: 'note', target: 'D59', prefill: { kind: 'question_client' } }
     const d = initialDraft(req, model, state)
@@ -194,6 +208,13 @@ describe('canOpen', () => {
     const r = canOpen({ type: 'verify', target: 'Sch3.10' }, ws(reviewerState, viewerOf(packet, 'st-02')))
     expect(r.auth).toEqual({ ok: true })
     expect(r.req.prefill?.level).toBe('preparer')
+  })
+  it('opens the Form 8867 checklist fix while the checklist is still empty (authorize refuses a partial one)', () => {
+    const f = model.findingsById['chk:CHK-54:F8867.status']
+    expect(canOpen(fixToRequest(f), ws(state)).auth).toEqual({ ok: true })
+    const r = normalizeRequest(fixToRequest(f))
+    expect(authorize(model, state, buildInput(r, initialDraft(r, model, state), state), preparer))
+      .toEqual({ ok: false, reason: 'Answer every Form 8867 question (12 left).' })
   })
   it('refusals typing cannot fix still come back, with the reason', () => {
     const r = canOpen({ type: 'adjust', target: 'F1040.19' }, ws(project(model, [], viewerOf(packet, 'st-05')), viewerOf(packet, 'st-05')))
@@ -271,6 +292,11 @@ describe('findings open the right form', () => {
     expect(sent.type === 'decide' && sent.body).toMatchObject({ kind: 'completeness', choice: 'Cash' })
     expect(initialDraft(fixToRequest({ ...f, expected: undefined, fix: { ...f.fix!, to: 'No' } }), model, state).choice).toBe('No')
     expect(initialDraft({ type: 'decide', target: 'F1040.19' }, model, state).decideKind).toBe('judgment')
+  })
+  it('the CHK-38 penalty fix opens a penalty decision (step 7 needs one)', () => {
+    const r = fixToRequest(model.findingsById['chk:CHK-38:penalty'])
+    expect(r.prefill?.kind).toBe('penalty')
+    expect(initialDraft(r, model, state).decideKind).toBe('penalty')
   })
 })
 
@@ -369,6 +395,12 @@ describe('draft → ActInput', () => {
     expect(submit({ type: 'time', target: 'business' }, { hours: '1.5' }).errors).toEqual({})
     expect(submit({ type: 'time', target: 'business' }).errors.hours).toBeTruthy()
     expect(submit({ type: 'assign', target: 'business' }).input.body).toMatchObject({ assignee: 'st-01' })
+  })
+  it('assign posts only the assignee: no due date it would never show', () => {
+    expect(submit({ type: 'assign', target: 'business' }, { due: '2027-01-10' }).input.body).toEqual({ assignee: 'st-01' })
+    // An older client that still sends a due date is accepted, and the key is stripped rather than stored.
+    const old = ActInputZ.safeParse({ type: 'assign', target: 'area:business', body: { assignee: 'st-01', due: '2027-01-10' } })
+    expect(old.success && old.data.body).toEqual({ assignee: 'st-01' })
   })
   it('return-level acts and the PIN', () => {
     expect(submit({ type: 'request_approval', target: 'return' }).errors).toEqual({})
@@ -476,6 +508,7 @@ describe('field errors in plain words', () => {
       ['adjust label 2001 characters', { type: 'adjust', target: 'F1040.19', prefill: { field: 'label' } }, { to: x(2001), reason }, 'to', chars(2000)],
       ['adjust evidence 201 refs', { type: 'adjust', target: 'F1040.19' }, { to: '0', reason, evidence: refs(201) }, 'evidence', items(200)],
       ['dispose reason 4001 characters', { type: 'dispose', target: 'D12' }, { reason: x(4001) }, 'reason', chars(4000)],
+      ['dispose authority 501 characters', { type: 'dispose', target: 'D12' }, { reason: 'same 1099', authority: x(501) }, 'authority', chars(500)],
       ['dispose ref 201 characters', { type: 'dispose', target: 'D12' }, { disposition: 'duplicate_of', ref: x(201), reason: 'same 1099' }, 'ref', chars(200)],
       ['resolve text 4001 characters', { type: 'resolve', target: 'act:7' }, { text: x(4001) }, 'text', chars(4000)],
       ['resolve authority 501 characters', { type: 'resolve', target: 'act:7' }, { text: 'done', authority: x(501) }, 'authority', chars(500)],

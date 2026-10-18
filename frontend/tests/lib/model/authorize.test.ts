@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DUE_DILIGENCE_QUESTIONS } from '@/lib/model/acts'
 import { canReveal } from '@/lib/model/authorize'
 import { seasonInstant } from '@/lib/model/project'
 import { OK, adjust, decide, effective, log, model, openFindingIds, resolveFinding, signoff, verify, who } from './test-helpers'
@@ -68,6 +69,28 @@ describe('authorize: firm rules', () => {
     expect(l.post('st-01', resolve)).toMatchObject({ ok: false })
     expect(l.post('st-03', resolve)).toEqual(OK)
     expect(l.state.notes[0].open).toBe(false)
+  })
+
+  it('a dispose that clears a finding asking for a decision needs an authority (spec §4.3); a dispose-fix or not-yet-known finding does not', () => {
+    expect(model.findingsById['chk:CHK-26:SchC.1'].fix?.act).toBe('decide')
+    const l = log()
+    // SchC.1 carries CHK-07 (an adjust fix) and CHK-26 (a decide fix): the dispose's primary-claim sweep clears both.
+    const refused = { ok: false, reason: 'Disposing SchC.1 clears a finding that asks for a decision; record the authority relied on, or record the decision instead.' }
+    expect(l.post('st-01', dispose('SchC.1'))).toEqual(refused)
+    expect(l.post('st-01', dispose('SchC.1', { findings: ['chk:CHK-07:SchC.1'] }))).toEqual(refused)
+    expect(l.post('st-01', dispose('chk:CHK-26:SchC.1'))).toMatchObject({ ok: false, reason: expect.stringMatching(/clears a finding that asks for a decision/) })
+    expect(l.post('st-01', dispose('D10', { disposition: 'duplicate_of', ref: 'D09' }))).toEqual(OK) // CHK-18:D10 is a dispose fix
+    // A judgment finding not in the file yet neither refuses the dispose nor shows through its reason.
+    expect(l.state.findings['chk:CHK-60:late-payment'].visible).toBe(false)
+    expect(l.post('st-01', dispose('F1040.37'))).toEqual(OK)
+    expect(l.post('st-01', dispose('SchC.1', { authority: 'Client 1099-K reconciliation; IRC §61' }))).toEqual(OK)
+    expect(l.state.findings['chk:CHK-26:SchC.1'].status).toBe('resolved')
+  })
+
+  it('a refusal typing cannot fix comes before the missing authority', () => {
+    const l = log()
+    fileFederal(l)
+    expect(l.post('st-01', dispose('SchC.1'))).toEqual(FROZEN_FED)
   })
 })
 
@@ -267,6 +290,15 @@ describe('authorize: what can be judged (lead decisions)', () => {
     expect(l.state.claims['household:theo#ssn'].preparedBy).not.toContain('st-04')
     // A page of a document stands for the document (CHK-03's unread-page fix disposes the page).
     expect(l.post('st-01', dispose('doc:D31#page32', { disposition: 'informational' }))).toEqual(OK)
+  })
+
+  it('refuses a due-diligence decide that leaves a Form 8867 question unanswered', () => {
+    const l = log()
+    expect(l.post('st-01', decide('F8867.status', 'due_diligence', { checklist: { ctc_residency: 'yes' } })))
+      .toEqual({ ok: false, reason: 'Answer every Form 8867 question (11 left).' })
+    expect(l.state.findings['chk:CHK-54:F8867.status']).toMatchObject({ visible: true, status: 'open' })
+    const all = Object.fromEntries(DUE_DILIGENCE_QUESTIONS.map((q) => [q.key, 'no' as const])) // a 'no' still counts as answered
+    expect(l.post('st-01', decide('F8867.status', 'due_diligence', { checklist: all }))).toEqual(OK)
   })
 })
 

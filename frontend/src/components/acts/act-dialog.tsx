@@ -29,7 +29,7 @@ import { plainMasked, sameValue } from '@/lib/model/mask-token'
 import { scopeOf } from '@/lib/model/project'
 import type { AuthResult } from '@/lib/model/state'
 import {
-  type AdjustFieldT, type AdjustPreview, type Answer, buildInput, canOpen, DECIDE_KIND_LABEL, DISPOSITION_LABEL, DISPOSITION_NEEDS_REF,
+  type AdjustFieldT, type AdjustPreview, type Answer, buildInput, canOpen, DECIDE_KIND_LABEL, DISPOSITION_LABEL, DISPOSITION_NEEDS_REF, disposeNeedsAuthority,
   type Draft, DUE_DILIGENCE_QUESTIONS, type FileT, formatSigned, formatVal, formErrors, initialDraft, issuesByField, type JurT,
   levelsFor, METHOD_INFO, type MethodT, NOTE_KIND_LABEL, parseTo, previewAdjust, probeDraft, proposalText, RESOLUTION_LABEL,
 } from './draft'
@@ -109,7 +109,7 @@ export function ActForm({ req, onDone, onOpen }: ActFormProps) {
 
   const input = buildInput(req, d, state)
   const parsed = ActInputZ.safeParse(input)
-  const errors = { ...(parsed.success ? {} : issuesByField(parsed.error.issues)), ...formErrors(req, d, state) }
+  const errors = { ...(parsed.success ? {} : issuesByField(parsed.error.issues)), ...formErrors(req, d, state, model) }
   // The tour's read-only state is the demo's own guard (api.ts refuses with the same reason), not a permission rule; the form
   // says so as it opens rather than after a filled-in Save. Otherwise authorize() judges the form with stand-ins for fields
   // still to fill, so the submit button (and with it the field errors) stays reachable.
@@ -396,8 +396,9 @@ function DecideFields({ d, set, err, ws }: SectionProps) {
   )
 }
 
-function DisposeFields({ d, set, err }: SectionProps) {
+function DisposeFields({ req, d, set, err, ws }: SectionProps) {
   const needsRef = DISPOSITION_NEEDS_REF.has(d.disposition)
+  const judgment = disposeNeedsAuthority(req, d, ws.state, ws.model) // it would clear an open finding that asks for a decision
   return (
     <>
       <Field label="Disposition" error={err.disposition}>
@@ -408,6 +409,10 @@ function DisposeFields({ d, set, err }: SectionProps) {
       </Field>
       <Field label="Reason" error={err.reason}>
         {(id, describedBy) => <Textarea id={id} value={d.reason} onChange={(e) => set({ reason: e.target.value })} aria-invalid={!!err.reason || undefined} aria-describedby={describedBy} />}
+      </Field>
+      <Field label={judgment ? 'Authority relied on' : 'Authority (optional)'} error={err.authority}
+        hint={judgment ? 'This clears a finding that asks for a decision. e.g. IRC §61; Rev. Proc. 2019-43; firm policy' : undefined}>
+        {(id, describedBy) => <Input id={id} value={d.authority} onChange={(e) => set({ authority: e.target.value })} aria-invalid={!!err.authority || undefined} aria-describedby={describedBy} />}
       </Field>
     </>
   )
@@ -543,9 +548,6 @@ function AssignFields({ req, d, set, err, ws }: SectionProps) {
           <Choice id={id} value={d.assignee || null} onChange={(assignee) => set({ assignee })} describedBy={describedBy}
             options={staff.map((v) => ({ value: v.id, label: `${v.name} (${v.role.replace('_', ' ')})` }))} />
         )}
-      </Field>
-      <Field label="Due (optional)" error={err.due}>
-        {(id, describedBy) => <Input id={id} type="date" value={d.due} onChange={(e) => set({ due: e.target.value })} className="w-fit" aria-describedby={describedBy} />}
       </Field>
     </>
   )

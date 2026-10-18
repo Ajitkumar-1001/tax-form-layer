@@ -8,6 +8,7 @@ import { RECORDS } from '@/components/records/registry'
 import { basisFlags } from '@/components/records/rows-assets'
 import { lotsOf, moveDate } from '@/components/records/rows-tieouts'
 import type { RecordTable } from '@/components/records/table'
+import type { State } from '@/lib/model/state'
 
 const { model, state } = loadFixture()
 const build = (name: string): RecordTable => BUILDERS[name](model, state)
@@ -107,6 +108,36 @@ describe('summary and swings', () => {
     const firstNonRoot = rows.findIndex((r) => r.cells[6].v !== 'root')
     expect(rows.slice(firstNonRoot).some((r) => r.cells[6].v === 'root')).toBe(false)
   })
+  const swingCell = (s: State, key: string) => rowsOf(BUILDERS.swings(model, s)).find((r) => r.key === key)!.cells[7]
+  const step5Refs = (s: State) => s.steps.flatMap((x) => x.reasons).filter((r) => r.what === 'Prior-year swing not explained').flatMap((r) => r.refs ?? [])
+  it('a disposed swing reads explained in the record exactly when step 5 drops it', () => {
+    const id = 'chk:CHK-26:SchC.1'
+    expect(build('swings').columns.at(-1)?.label).toBe('Explained')
+    expect(step5Refs(state)).toContain(id)
+    expect(swingCell(state, 'SchC.1')).toMatchObject({ v: 'not explained', tone: 'warn', ref: id })
+    const s = project(model, actsOf(model, [['st-01', { type: 'dispose', target: id, body: { disposition: 'informational', reason: 'Gross receipts growth confirmed with client' } }]]), state.viewer)
+    expect(s.findings[id].resolvedBy?.how).toBe('dispose')
+    expect(s.claims['SchC.1']?.decision).toBeUndefined()
+    expect(step5Refs(s)).not.toContain(id)
+    expect(swingCell(s, 'SchC.1')).toMatchObject({ v: 'explained', tone: 'good', ref: `act:${s.findings[id].resolvedBy!.seq}` })
+  })
+  it('an adjust on a root swing reads explained, as step 5 counts it, and links the adjust', () => {
+    const id = 'chk:CHK-26:SchC.1'
+    const adjust: ActInput = { type: 'adjust', target: 'SchC.1', body: { field: 'value', to: 163000, reason: 'Gross receipts tied to the 1099-K total', evidence: [] } }
+    const s = project(model, actsOf(model, [['st-01', adjust]]), state.viewer)
+    expect(s.findings[id].resolvedBy).toBeUndefined()
+    expect(step5Refs(s)).not.toContain(id)
+    expect(swingCell(s, 'SchC.1')).toMatchObject({ v: 'explained', tone: 'good', ref: `act:${s.claims['SchC.1']!.adjust!.seq}` })
+  })
+  it('non-root totals carry no explained cell, even with a decide on them', () => {
+    const rows = rowsOf(build('swings')).filter((r) => r.cells[6].v !== 'root')
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((r) => r.cells[7].v === null)).toBe(true)
+    const key = rows.find((r) => r.exception)!.key
+    const s = project(model, actsOf(model, [['st-01', { type: 'decide', target: key, body: { kind: 'swing_explained', question: 'Why did this total move?', choice: 'It follows its inputs', alternatives: [], authority: 'Firm variance standard', evidence: [] } }]]), state.viewer)
+    expect(s.claims[key]?.decision).toBeDefined()
+    expect(swingCell(s, key).v).toBeNull()
+  })
 })
 
 describe('tax computation', () => {
@@ -134,6 +165,19 @@ describe('state split, depreciation, carryovers, basis', () => {
     const cap = build('carryovers').groups[0].rows.find((r) => r.key === 'capital_loss_long')
     expect(cap?.cells[1].v).toBe(11000)
     expect(cap?.cells[3].v).toBe(0)
+  })
+  it('pairs California carryovers in to out and never shows a negative used', () => {
+    const t = build('carryovers')
+    const ca = t.groups.find((g) => g.key === 'california')!.rows
+    expect(ca.map((r) => r.key)).toEqual(['ca:capital_loss', 'ca:passive'])
+    expect(ca.map((r) => [r.cells[1].v, r.cells[2].v, r.cells[3].v])).toEqual([[14200, 14200, 0], [16150, 16150, 0]])
+    expect(ca.every((r) => r.exception)).toBe(true)
+    expect(ca[0].cells[0].refs).toEqual(['py:/carryovers_into_2025/california/capital_loss_short', 'py:/carryovers_into_2025/california/capital_loss_long'])
+    expect(ca[0].cells[4].v).toBe('2024: capital loss short 3,200 + capital loss long 11,000')
+    const amt = t.groups[0].rows.find((r) => r.key === 'minimum_tax_credit_from_2025_amt')!
+    expect([amt.cells[1].v, amt.cells[2].v, amt.cells[3].v]).toEqual([0, 0, 3871])
+    expect(amt.cells[4].v).toBe('3,871 arose in 2025')
+    for (const row of rowsOf(t)) expect((row.cells[2].v as number | null) ?? 0).toBeGreaterThanOrEqual(0)
   })
   it('links a document cited as a basis source', () => {
     expect(rowsOf(build('basis')).flatMap((r) => r.cells).some((c) => c.ref === 'D54')).toBe(true)

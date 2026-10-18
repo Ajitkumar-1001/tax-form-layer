@@ -1,6 +1,6 @@
 // project(model, acts, viewer) → State. One pure module: the browser runs it for speed,
 // the server runs it for enforcement. Acts must be in ascending seq order.
-import type { Act, ActInput, AdjustDerived, AgencyResultBody, ApprovalDerived, SignoffDerived } from './acts'
+import { type Act, type ActInput, type AdjustDerived, type AgencyResultBody, type ApprovalDerived, DUE_DILIGENCE_QUESTIONS, type SignoffDerived } from './acts'
 import type { Model } from './build'
 import type { Claim, Val } from './claims'
 import { effectSpec } from './effects'
@@ -100,7 +100,23 @@ export function whatIfCites(state: State, id: string): Act[] {
   return state.acts.filter((a) => a.type === 'adjust' && live.has(a.seq) && (a.body as Body<'adjust'>).what_if === id)
 }
 
-const isNoticeResponse = (a: Act) => a.type === 'decide' && (a.body as Body<'decide'>).kind === 'notice_response'
+/** Step 5's reason; its `refs` are the CHK-26 findings the gate still counts as unexplained, which the swings record reads. */
+export const SWING_UNEXPLAINED = 'Prior-year swing not explained'
+
+const isNoticeResponse = (a: Pick<Act, 'type' | 'body'>) => a.type === 'decide' && (a.body as Body<'decide'>).kind === 'notice_response'
+
+/**
+ * Findings an act clears, in order: those it lists, then (unless it answers a notice) its chk: target for a resolve, dispose
+ * or decide, then the findings whose primary claim it targets for a dispose or decide. Pass `byPrimary` to skip the scan.
+ */
+export function findingsClearedBy(model: Model, a: Pick<Act, 'type' | 'target' | 'body'>, byPrimary?: Record<string, string[]>): string[] {
+  const ids = [...((a.body as { findings?: string[] }).findings ?? [])]
+  if (!isNoticeResponse(a)) {
+    if (a.type === 'resolve' || a.type === 'dispose' || a.type === 'decide') ids.push(a.target)
+    if (a.type === 'dispose' || a.type === 'decide') ids.push(...(byPrimary ? (byPrimary[a.target] ?? []) : model.findings.filter((f) => f.claims[0] === a.target).map((f) => f.id)))
+  }
+  return ids.filter((id) => model.findingsById[id])
+}
 
 /** Logged hours to the hundredth, so a sum of decimal time acts (0.4 + 0.8 + 0.3) meets its budget exactly instead of passing it by float noise. */
 export const roundHours = (n: number): number => Math.round(n * 100) / 100
@@ -203,12 +219,7 @@ export function project(model: Model, acts: Act[], viewer: Viewer, engagement = 
   const clear = (id: string, a: Act) => {
     if (model.findingsById[id] && !resolvedBy.has(id)) resolvedBy.set(id, { seq: a.seq, actor: a.actor, how: a.type })
   }
-  for (const a of live) {
-    for (const id of (a.body as { findings?: string[] }).findings ?? []) clear(id, a)
-    if (isNoticeResponse(a)) continue
-    if (a.type === 'resolve' || a.type === 'dispose' || a.type === 'decide') clear(a.target, a)
-    if (a.type === 'dispose' || a.type === 'decide') for (const id of byPrimary[a.target] ?? []) clear(id, a)
-  }
+  for (const a of live) for (const id of findingsClearedBy(model, a, byPrimary)) clear(id, a)
   const findings: Record<string, FindingState> = {}
   for (const f of model.findings) {
     const r = resolvedBy.get(f.id)
@@ -495,8 +506,11 @@ export function project(model: Model, acts: Act[], viewer: Viewer, engagement = 
     .map((f) => f.id)
   const dd = liveOn('F8867.status', 'decide').some((a) => {
     const b = a.body as Body<'decide'>
-    return b.kind === 'due_diligence' && Object.keys(b.checklist ?? {}).length > 0
+    return b.kind === 'due_diligence' && DUE_DILIGENCE_QUESTIONS.every((q) => b.checklist?.[q.key]) // also guards forced or older acts
   })
+  // The Form 2210 prompt needs a live 'penalty' decide on its line; resolving the finding or a judgment does not answer it.
+  const penalty = model.findingsById['chk:CHK-38:penalty']
+  const penaltyUndecided = penalty && findings[penalty.id].visible && !decidedAs(penalty.claims[0], 'penalty') ? [penalty.claims[0]] : []
 
   step([['Not verified to the signed document', ['D01', 'D02'].filter((id) => !verifiedBy(id, ['D']))]])
   step([
@@ -508,7 +522,7 @@ export function project(model: Model, acts: Act[], viewer: Viewer, engagement = 
     ['Document not accounted for', [...openOf('CHK-48'), ...openOf('CHK-18'), ...openOf('CHK-03').filter((id) => /^chk:CHK-03:D\d+$/.test(id))]],
     ['Client communication neither cited nor disposed', kindOf('comm').filter((id) => !cited.has(id) && !claims[id].disposition)],
   ])
-  step([['Prior-year swing not explained', swingIds]])
+  step([[SWING_UNEXPLAINED, swingIds]])
   step([
     ['Carryover not agreed to prior year', carryLines.filter((id) => !verifiedBy(id, ['P']) && !lastAdjust[id])],
     ['Open carryover finding', openOf('CHK-28')],
@@ -517,6 +531,9 @@ export function project(model: Model, acts: Act[], viewer: Viewer, engagement = 
     ['Not agreed to the IRS or FTB record', ['F1040.26', 'F540NR.72'].filter((id) => !verifiedBy(id, ['T']))],
     ['Extension payment not verified', ['Sch3.10'].filter((id) => !verifiedBy(id))],
     ['Open payment finding', openOf('CHK-19')],
+    ['Underpayment penalty not decided with authority', penaltyUndecided],
+    // By id: CHK-60's late-payment finding appears only after filing, when the payment lines are frozen.
+    ['Open extension finding', openOf('CHK-60').filter((id) => id === 'chk:CHK-60:extension')],
   ])
   step([
     ["Due diligence not documented (F8867 'Not completed')", dd ? [] : ['F8867.status']],

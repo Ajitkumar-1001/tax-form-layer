@@ -175,6 +175,21 @@ export function claimFindingIds(model: Model, claim: Claim): string[] {
   return [...new Set([...own, ...findingsCiting(model, [claim.id, ...pages, ...reads]).map((f) => f.id)])]
 }
 
+export type Provenance = 'documents' | 'inputs' | 'client' | 'unsourced' | 'engine'
+/** Where a line's value comes from. Client-only and unsourced come from the CHK-24 finding itself; a line with neither sources nor inputs that CHK-24 skipped holds an engine default, parameter or zero. */
+export function provenanceOf(model: Model, claim: Claim): { kind: Provenance; finding?: string } {
+  const id = `chk:CHK-24:${claim.id}`
+  if (model.findingsById[id]) return { kind: claim.sources.length ? 'client' : 'unsourced', finding: id }
+  if (claim.sources.length) return { kind: 'documents' }
+  return { kind: claim.inputs.length ? 'inputs' : 'engine' }
+}
+
+/** A finding's `why` up to its first sentence: the statement of fact, without the advice that follows it. */
+export const firstSentence = (s: string): string => {
+  const end = s.indexOf('. ')
+  return end < 0 ? s : s.slice(0, end + 1)
+}
+
 export interface FileLink {
   name: string
   mime: string

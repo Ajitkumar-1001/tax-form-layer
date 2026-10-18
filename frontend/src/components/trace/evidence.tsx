@@ -8,7 +8,7 @@ import { useWorkspace } from '@/components/workspace/context'
 import type { Claim } from '@/lib/model/claims'
 import { cn } from '@/lib/utils'
 import { CommCard, Empty, RefPreview, Section, useWho } from './parts'
-import { attachmentsFor, claimFindingIds, groupEvidence, linkedComms, type PageGroup } from './resolve'
+import { attachmentsFor, claimFindingIds, firstSentence, groupEvidence, linkedComms, type PageGroup, provenanceOf } from './resolve'
 
 const pageKey = (g: PageGroup) => `${g.doc}#${g.page}`
 
@@ -40,6 +40,10 @@ export function EvidenceTab({ claim }: { claim: Claim }) {
     return pages.length > 1 || pages.some((g) => !own(g))
   })
   const comms = linkedComms(model, state, claim.id, [...claim.sources, ...findings.flatMap((f) => f.evidence)]).filter((c) => c !== claim.id)
+  // A line with no document behind it says where the value does come from, in CHK-24's own words; the link waits for the clock.
+  const prov = claim.kind === 'line' ? provenanceOf(model, claim) : undefined
+  const provWhy = prov?.finding ? firstSentence(model.findingsById[prov.finding].why) : ''
+  const provLink = prov?.finding && state.findings[prov.finding]?.visible ? <> <RefLink to={prov.finding}>See the provenance finding</RefLink></> : null
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,10 +51,13 @@ export function EvidenceTab({ claim }: { claim: Claim }) {
       {claim.kind === 'comm' && <CommCard id={claim.id} />}
       {sources.length > 0 && (
         <Section title="Sources">
+          {prov?.kind === 'client' && <Empty>{provWhy}{provLink}</Empty>}
           <EvidenceRefs refs={sources} />
         </Section>
       )}
-      {claim.kind === 'line' && sources.length === 0 && <Empty>This line cites no source; it is computed from its inputs (see Built).</Empty>}
+      {prov?.kind === 'inputs' && <Empty>This line cites no source; it is computed from its inputs (see Built).</Empty>}
+      {prov?.kind === 'unsourced' && <Empty>{provWhy}{provLink}</Empty>}
+      {prov?.kind === 'engine' && <Empty>No document or input line behind this line: the engine set it as a default, a parameter or a zero (rule under Built).</Empty>}
       {pairs.map((f) => (
         <Section key={f.id} title={<>Compare · <RefLink to={f.id} className="normal-case">{f.check}</RefLink></>}>
           <p className="text-sm">{f.title}</p>

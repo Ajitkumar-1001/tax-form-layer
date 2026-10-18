@@ -1,9 +1,10 @@
 // Records read from the return's own lines: summary, tax computation, swings, areas, state split and form presets.
 import type { Model } from '@/lib/model/build'
 import { swingRows } from '@/lib/model/checks/swings'
+import { SWING_UNEXPLAINED } from '@/lib/model/project'
 import type { State } from '@/lib/model/state'
 import {
-  type Banner, type Builder, type Group, type Row, ROW_COLUMNS, diff, effective, flagText, formGroups, link, lineRow, links, money, num,
+  type Banner, type Builder, type Cell, type Group, type Row, ROW_COLUMNS, diff, effective, flagText, formGroups, link, lineRow, links, money, num,
   openCount, single, text,
 } from './table'
 
@@ -77,8 +78,19 @@ export const taxComputation: Builder = (model, state) => {
   return { ...single(ROW_COLUMNS, rows, totalsNotes(state)), allByDefault: true }
 }
 
+/** A root swing's review status, read from step 5's own list; the link points at the act that explained it or the open finding. */
+function explainedCell(state: State, unexplained: Set<string>, key: string, isRoot: boolean): Cell {
+  const fid = `chk:CHK-26:${key}`
+  const f = state.findings[fid]
+  if (!isRoot || !f?.visible) return text(null)
+  if (unexplained.has(fid)) return { v: 'not explained', tone: 'warn', ref: fid }
+  const by = f.resolvedBy?.seq ?? state.claims[key]?.adjust?.seq
+  return { v: 'explained', tone: 'good', ...(by !== undefined && { ref: `act:${by}` }) }
+}
+
 export const swings: Builder = (model, state) => {
   const order = (r: { is_root: boolean; over_threshold: boolean }) => (r.is_root ? 0 : r.over_threshold ? 1 : 2)
+  const unexplained = new Set(state.steps.flatMap((s) => s.reasons).filter((r) => r.what === SWING_UNEXPLAINED).flatMap((r) => r.refs ?? []))
   const rows = swingRows(model)
     .sort((a, b) => order(a) - order(b) || Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0))
     .map((r): Row => ({
@@ -92,12 +104,12 @@ export const swings: Builder = (model, state) => {
         money(r.delta),
         text(r.pct === null ? (r.over_threshold ? 'new' : null) : `${r.pct > 0 ? '+' : ''}${r.pct.toFixed(1)}%`),
         r.is_root ? { v: 'root', tone: 'warn', ref: `chk:CHK-26:${r.key}` } : text(r.over_threshold ? 'inherits a swing below' : null, 'muted'),
-        text(state.claims[r.key]?.decision ? 'explained' : null, 'good'),
+        explainedCell(state, unexplained, r.key, r.is_root),
       ],
     }))
   const { flag_if_change_over_percent: pct, and_over_amount: amt } = model.packet.firm.starter_standards.variance_review
   return single(
-    [{ label: 'Line' }, { label: 'Description' }, { label: '2024', money: true }, { label: 'v3', money: true }, { label: 'Δ', money: true }, { label: '%' }, { label: 'Root' }, { label: 'Decision' }],
+    [{ label: 'Line' }, { label: 'Description' }, { label: '2024', money: true }, { label: 'v3', money: true }, { label: 'Δ', money: true }, { label: '%' }, { label: 'Root' }, { label: 'Explained' }],
     rows,
     [{ text: `Firm standard: explain changes over ${pct}% and over ${amt.toLocaleString('en-US')}. Roots are swings none of whose inputs also swing; totals above them inherit.`, tone: 'muted', refs: [] }],
   )

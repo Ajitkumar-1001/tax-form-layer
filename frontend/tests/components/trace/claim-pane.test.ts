@@ -7,7 +7,9 @@ import { renderToString } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { actsOf, readPacket } from '../records/fixture'
 import { refHref } from '@/components/atoms/format'
+import { BuiltTab } from '@/components/trace/built'
 import { ClaimPane } from '@/components/trace/claim-pane'
+import { EvidenceTab } from '@/components/trace/evidence'
 import { WorkspaceContext } from '@/components/workspace/context'
 import type { Workspace } from '@/components/workspace/types'
 import type { ActInput } from '@/lib/model/acts'
@@ -198,6 +200,54 @@ describe('claim pane open notes', () => {
       expect(cls, where).toBeDefined()
       expect(cls?.split(' '), where).toContain('flex-col')
       expect(cls?.split(' '), where).toContain('wrap-anywhere')
+    }
+  })
+})
+
+// A line with no document behind it says where its value does come from, read off CHK-24 (client-answers.ts): client
+// statements only, nothing at all, or an engine default, parameter or zero that CHK-24 skips. Only a line with inputs
+// says "computed from its inputs". The link to the provenance finding follows the finding's visibility at the clock.
+describe('trace provenance copy', () => {
+  const tab = (C: typeof EvidenceTab, key: string, w = wsOf([])) => renderToString(h(WorkspaceContext, { value: w }, h(C, { claim: model.claims[key] })))
+  const link = (key: string) => `href="${refHref(`chk:CHK-24:${key}`)}"`
+
+  it('words the Evidence tab by provenance', () => {
+    const unsourced = tab(EvidenceTab, 'F540NR.73')
+    expect(text(unsourced)).toContain('nothing shows where the value came from')
+    expect(unsourced).toContain(link('F540NR.73'))
+    expect(text(unsourced)).not.toContain('computed from its inputs')
+
+    const engine = text(tab(EvidenceTab, 'SchB.8'))
+    expect(engine).toContain('the engine set it as a default, a parameter or a zero')
+    expect(engine).not.toContain('computed from its inputs')
+
+    const client = tab(EvidenceTab, 'Sch3.10')
+    expect(text(client)).toContain('No document supports this line: its only sources are client statements or firm events.')
+    expect(text(client)).not.toContain('Get a document') // the finding's why promises an act this sentence ships no control for
+    expect(client).toContain(link('Sch3.10'))
+
+    expect(text(tab(EvidenceTab, 'F1040.24'))).toContain('computed from its inputs')
+  })
+
+  it('words the Built tab by provenance and lists no empty sources', () => {
+    const unsourced = tab(BuiltTab, 'F540NR.73')
+    expect(text(unsourced)).toContain('No sources and no input lines: nothing shows where this value came from.')
+    expect(unsourced).toContain(link('F540NR.73'))
+    for (const k of ['F540NR.73', 'SchB.8', 'F8960.14']) expect(text(tab(BuiltTab, k)), k).not.toContain('A leaf: read from sources')
+    expect(text(tab(BuiltTab, 'SchB.8'))).toContain('Set by the engine')
+    expect(text(tab(BuiltTab, 'Sch3.10'))).toContain('A leaf: read from client statements or firm events only, not from a document.')
+    expect(text(tab(BuiltTab, 'F1040.26'))).toContain('A leaf: read from sources, not computed from other lines.')
+  })
+
+  it('keeps the sentence and drops the link while the finding is hidden at the clock', () => {
+    const id = 'chk:CHK-24:F540NR.73'
+    const w = wsOf([])
+    expect(w.state.findings[id]?.visible).toBe(true)
+    const hidden = { ...w, state: { ...w.state, findings: { ...w.state.findings, [id]: { ...w.state.findings[id], visible: false } } } }
+    for (const C of [EvidenceTab, BuiltTab]) {
+      const html = tab(C, 'F540NR.73', hidden)
+      expect(text(html)).toContain('nothing shows where')
+      expect(html).not.toContain(link('F540NR.73'))
     }
   })
 })

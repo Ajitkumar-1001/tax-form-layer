@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { DUE_DILIGENCE_QUESTIONS } from '@/lib/model/acts'
 import { makeToken } from '@/lib/model/mask-token'
 import { clip, project } from '@/lib/model/project'
 import type { AuthResult } from '@/lib/model/state'
-import { OK, WALL, adjust, effective, log, model, openFindingIds, resolveFinding, signoff, verify, who } from './test-helpers'
+import { OK, WALL, adjust, decide, effective, log, model, openFindingIds, resolveFinding, signoff, verify, who } from './test-helpers'
+
+const FULL_CHECKLIST = Object.fromEntries(DUE_DILIGENCE_QUESTIONS.map((q) => [q.key, 'yes' as const]))
 
 describe('project: sign-offs, reverts, gates, approval and freeze', () => {
   it('attaching a message to a claim in a signed area reopens the sign-off with that claim changed', () => {
@@ -114,7 +117,8 @@ describe('project: sign-offs, reverts, gates, approval and freeze', () => {
     must(l.post('st-01', verify('D02', null)))
     for (const c of model.claimList.filter((x) => /^household:[^#]+#(ssn|dob)$/.test(x.id))) must(l.post('st-01', verify(c.id, effective(s(), c.id))))
     for (const id of ['D06', 'D07', ...known('prior_item'), ...known('diag'), ...known('whatif')]) {
-      must(l.post('st-01', { type: 'dispose', target: id, body: { disposition: 'informational', reason: 'Reviewed and recorded' } }))
+      // A what-if's CHK-52 finding asks for a decision, so disposing it cites an authority.
+      must(l.post('st-01', { type: 'dispose', target: id, body: { disposition: 'informational', reason: 'Reviewed and recorded', authority: 'Firm review of the engine alternatives' } }))
     }
     for (const id of known('comm').filter((id) => s().claims[id].status === 'open')) {
       must(l.post('st-01', { type: 'dispose', target: id, body: { disposition: 'informational', reason: 'Read; no return effect' } }))
@@ -128,8 +132,9 @@ describe('project: sign-offs, reverts, gates, approval and freeze', () => {
     must(l.post('st-01', verify('D59', null)))
     must(l.post('st-01', {
       type: 'decide', target: 'F8867.status',
-      body: { kind: 'due_diligence', question: 'CTC/ODC due diligence', choice: 'Completed', authority: 'IRC 6695(g); Treas. Reg. 1.6695-2', evidence: [], checklist: { residency: 'yes' } },
+      body: { kind: 'due_diligence', question: 'CTC/ODC due diligence', choice: 'Completed', authority: 'IRC 6695(g); Treas. Reg. 1.6695-2', evidence: [], checklist: FULL_CHECKLIST },
     }))
+    must(l.post('st-01', decide('F1040.38', 'penalty', { question: 'Form 2210 underpayment penalty', choice: 'Accept 164 (regular method)', authority: 'IRC 6654; Form 2210 instructions' })))
     for (const f of Object.values(s().findings).filter((x) => x.visible && x.status === 'open')) {
       must(l.post('st-01', resolveFinding(f.id, 'Firm standard 4.2; worked in test')))
     }
@@ -176,6 +181,42 @@ describe('project: step reasons carry their items', () => {
     const gate = [...s.gates.request_approval.reasons, ...s.gates.submit.reasons]
     expect(gate).toHaveLength(11 + 12)
     for (const r of gate) expect(Object.keys(r).sort()).toEqual(['ref', 'text'])
+  })
+})
+
+describe('project: step 8 needs every Form 8867 answer and step 7 a penalty decision', () => {
+  const DD = "Due diligence not documented (F8867 'Not completed')"
+  const PENALTY = 'Underpayment penalty not decided with authority'
+
+  it('a stored partial checklist leaves step 8 red; the full checklist turns that reason off', () => {
+    const l = log()
+    expect(l.post('st-01', decide('F8867.status', 'due_diligence', { checklist: { ctc_residency: 'yes' } }), { force: true })).toEqual(OK)
+    expect(l.state.steps[7].reasons[0].what).toBe(DD)
+    expect(l.post('st-01', decide('F8867.status', 'due_diligence', { checklist: FULL_CHECKLIST }))).toEqual(OK)
+    expect(l.state.steps[7].reasons.map((r) => r.what)).not.toContain(DD)
+  })
+
+  it('resolving the CHK-38 prompt or a judgment does not decide the penalty; a penalty decide does', () => {
+    const l = log()
+    expect(l.state.findings['chk:CHK-38:penalty'].visible).toBe(true)
+    const penalty = () => l.state.steps[6].reasons.find((r) => r.what === PENALTY)
+    expect(penalty()).toMatchObject({ refs: ['F1040.38'] })
+    expect(l.post('st-01', resolveFinding('chk:CHK-38:penalty', 'IRC 6654'))).toEqual(OK)
+    expect(l.post('st-01', decide('F1040.38', 'judgment'))).toEqual(OK)
+    expect(penalty()).toBeDefined()
+    expect(l.post('st-01', decide('F1040.38', 'penalty'))).toEqual(OK)
+    expect(penalty()).toBeUndefined()
+    expect(l.state.steps[6].reasons[0].what).toBe('Not agreed to the IRS or FTB record')
+  })
+
+  it('the undersized-extension finding blocks step 7 by id; the post-filing late-payment one never does', () => {
+    const l = log()
+    const ext = l.state.steps[6].reasons.find((r) => r.what === 'Open extension finding')
+    expect(ext?.refs).toEqual(['chk:CHK-60:extension'])
+    // Past e-file acceptance (2026-07-20) the late-payment finding is in the file and open, and still not a step reason.
+    expect(l.post('st-03', { type: 'clock', target: 'season', body: { to: '2027-01-04T15:00:00Z' } })).toEqual(OK)
+    expect(l.state.findings['chk:CHK-60:late-payment']).toMatchObject({ visible: true, status: 'open' })
+    expect(l.state.steps.flatMap((x) => x.reasons).flatMap((r) => r.refs ?? [])).not.toContain('chk:CHK-60:late-payment')
   })
 })
 

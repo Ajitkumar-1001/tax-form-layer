@@ -7,7 +7,7 @@ import { StatusPill } from '@/components/atoms/status'
 import { useWorkspace } from '@/components/workspace/context'
 import type { Claim } from '@/lib/model/claims'
 import { Empty, JsonView, Section, ValueText } from './parts'
-import { valueRows, whatIfsTouching } from './resolve'
+import { type Provenance, provenanceOf, valueRows, whatIfsTouching } from './resolve'
 
 export function BuiltTab({ claim }: { claim: Claim }) {
   switch (claim.kind) {
@@ -28,8 +28,18 @@ export function BuiltTab({ claim }: { claim: Claim }) {
   }
 }
 
+/** What a line with no input lines is, by where its value comes from (provenanceOf). */
+const LEAF: Record<Provenance, string> = {
+  documents: 'A leaf: read from sources, not computed from other lines.',
+  inputs: 'A leaf: read from sources, not computed from other lines.', // not reached: a line with inputs shows its tree
+  client: 'A leaf: read from client statements or firm events only, not from a document.',
+  unsourced: 'No sources and no input lines: nothing shows where this value came from.',
+  engine: 'Set by the engine (see the rule above): no sources and no input lines.',
+}
+
 function LineBuilt({ claim }: { claim: Claim }) {
-  const { model } = useWorkspace()
+  const { model, state } = useWorkspace()
+  const prov = provenanceOf(model, claim)
   const rule = claim.rule ? model.packet.engine_reference.rules[claim.rule] : undefined
   const whatIfs = whatIfsTouching(model, claim.id)
   return (
@@ -46,8 +56,9 @@ function LineBuilt({ claim }: { claim: Claim }) {
           </ul>
         ) : (
           <div className="flex flex-col gap-1 text-sm">
-            <p className="text-muted-foreground">A leaf: read from sources, not computed from other lines.</p>
-            <p className="flex flex-wrap gap-2">{claim.sources.map((s) => <RefLink key={s} to={s} />)}</p>
+            <p className="text-muted-foreground">{LEAF[prov.kind]}</p>
+            {claim.sources.length > 0 && <p className="flex flex-wrap gap-2">{claim.sources.map((s) => <RefLink key={s} to={s} />)}</p>}
+            {prov.kind === 'unsourced' && prov.finding && state.findings[prov.finding]?.visible && <RefLink to={prov.finding} className="w-fit">See the provenance finding</RefLink>}
           </div>
         )}
       </Section>
