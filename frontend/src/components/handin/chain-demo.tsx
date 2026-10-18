@@ -2,7 +2,7 @@
 // The About page's live thing: three example acts chained by SHA-256, hashed in the browser. Edit one and every row after
 // it stops matching, the way the hash chain in the acts table makes a changed past visible. The head and packet hash
 // underneath are the workspace's real ones.
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { RotateCcwIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/components/workspace/context'
@@ -34,6 +34,7 @@ export function ChainDemo() {
   const [texts, setTexts] = useState(ORIGINAL)
   const [hashes, setHashes] = useState(ROWS.map(([, h]) => h))
   const latest = useRef(0)
+  const base = useId()
 
   const set = (next: string[]) => {
     const id = ++latest.current
@@ -57,9 +58,11 @@ export function ChainDemo() {
           const ok = hashes[i] === ROWS[i][1]
           return (
             <li key={i} className={cn('flex flex-col gap-2 p-4 transition-colors duration-300 motion-reduce:transition-none', ok ? 'bg-background' : 'bg-danger-soft')}>
-              <label className="flex flex-col gap-1 text-sm">
+              <label htmlFor={`${base}-act-${i}`} className="flex flex-col gap-1 text-sm">
                 <span>Act {i + 1}</span>
                 <textarea
+                  id={`${base}-act-${i}`}
+                  name={`act-${i}`}
                   rows={2}
                   value={text}
                   onChange={(e) => set(texts.map((t, j) => (j === i ? e.target.value : t)))}

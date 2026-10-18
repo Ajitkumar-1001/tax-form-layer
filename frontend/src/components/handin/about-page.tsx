@@ -66,7 +66,7 @@ const AI_USE: [string, string][] = [
   ['Design', 'A panel of design agents proposed competing concepts; judge agents scored them against the brief, and the winning concept was revised into the spec.'],
   ['Build', 'Parallel build agents each owned a slice of files behind frozen contracts (model, projection, server, screens), with reviewer agents checking each slice.'],
   ['Checks are tested, not trusted', 'Every engine-free check is pinned by tests that run it against the real packet and assert the findings it must raise.'],
-  ['The human made the calls', 'The agents proposed, built and challenged each other; a person chose the design, the scope and what to cut.'],
+  ['The human made the calls', 'Built with Claude Code. The agents proposed, built and challenged each other; a person chose the design, the scope and what to cut.'],
 ]
 
 const FLOW: [string, string][] = [

@@ -67,6 +67,32 @@ describe('errorRows', () => {
     expect(after.findings.filter((f) => f.visible).every((f) => f.resolvedBy?.actor === 'st-01')).toBe(true)
   })
 
+  it('E68 (2026 planning) is reviewer judgment: no check claims it and no CHK-50 finding touches its scope', () => {
+    const e68 = CANON_ERRORS.find((e) => e.id === 'E68')!
+    expect(e68.checks).toEqual([])
+    expect(e68.uncaught).toMatch(/planning_reference_2026/)
+    const row = rows.find((r) => r.error.id === 'E68')!
+    expect(row.status).toBe('prompt')
+    expect(row.findings).toEqual([])
+    // If CHK-50 grows a next-year (540NR / estimates) branch, this fails: put E68 back in CHK-50.catches.
+    const scope = new Set(['timeline:tl-28', 'timeline:tl-20', 'D39', 'D03', 'SchE.1A', 'D38', 'ev-0971', 'D12', 'F1040.24', 'F540NR.64', 'F540NR.32'])
+    expect(new Set([...e68.refs, ...e68.lines])).toEqual(scope)
+    for (const f of model.findings.filter((x) => x.check === 'CHK-50')) {
+      expect([...f.claims, ...f.evidence].filter((r) => scope.has(r))).toEqual([])
+      expect(`${f.title} ${f.why}`).not.toMatch(/540NR|safe harbor|2026 estimat/i)
+    }
+  })
+
+  it('E70 (2024 amend or disclose) rests on CHK-32 alone; CHK-50 has no prior-year branch', () => {
+    const e70 = CANON_ERRORS.find((e) => e.id === 'E70')!
+    expect(e70.checks).toEqual(['CHK-32'])
+    expect(e70.uncaught).toMatch(/CHK-50/)
+    const row = rows.find((r) => r.error.id === 'E70')!
+    expect(row.findings.length).toBeGreaterThan(0)
+    expect(row.findings.every((f) => f.check === 'CHK-32')).toBe(true)
+    expect(row.findings.map((f) => f.id)).toContain('chk:CHK-32:notes/4')
+  })
+
   it('filters by category and status', () => {
     const judgment = filterRows(rows, { category: 'judgment_call', status: 'all' })
     expect(judgment.length).toBeGreaterThan(0)

@@ -253,5 +253,7 @@ describe('hand-in pages', () => {
     const a = text(render(h(AboutPage), ws('st-03')))
     expect(a).toContain('demo identity picker, not authentication')
     expect(a).toContain('How AI was used')
+    // The README and the one-pager name the tool; /about must agree.
+    expect(a).toContain('Built with Claude Code.')
   })
 })

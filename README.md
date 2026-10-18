@@ -6,6 +6,30 @@ A web-native tax workpaper. It treats a return as a **list of claims** and keeps
 
 > All data is synthetic. The sample return (the Okafor-Lindqvist household, tax year 2025), the firm and its staff are invented. No real taxpayer information is used anywhere.
 
+## Hand-in
+
+The brief asks for four things.
+
+| # | Brief item | Where it is |
+|---|---|---|
+| 1 | A working workpaper that loads the packet as delivered, saves everything and has a role switcher | **https://miraflores-workpaper-seven.vercel.app**. The packet is loaded byte for byte and pinned by SHA-256 (`frontend/src/lib/packet.ts`). Every act is a row in Postgres. The role switcher is top right. |
+| 2 | One page on the core idea and the data model | [`one-pager.pdf`](https://miraflores-workpaper-seven.vercel.app/one-pager.pdf), also in the repo at [`frontend/public/one-pager.pdf`](frontend/public/one-pager.pdf). The in-app [About](https://miraflores-workpaper-seven.vercel.app/about) page is the long version. |
+| 3 | The errors found, and how the design surfaced them | [`/errors`](https://miraflores-workpaper-seven.vercel.app/errors) lists all 70 issues. Each row shows the check that raises it, or marks it as reviewer judgment, plus its live status. The page is generated into [`frontend/src/lib/errors-map.ts`](frontend/src/lib/errors-map.ts). |
+| 4 | A video walkthrough | **Video: link to be added before submission.** |
+
+### How AI was used
+
+I built this with Claude Code, Anthropic's coding agent. I made the calls myself: the scope and what to cut, the masking model, the partner sign-off rule and what to simulate.
+
+- **Error hunt.** A deterministic script compared all 3,012 extracted values with their printed pages. Then ten analyst agents, one per return area, traced every document, answer, agency record and line. A second agent per area tried to refute each finding, and a completeness critic looked for gaps. 70 issues survived and 6 were dropped.
+- **Design.** Design agents proposed competing concepts. Judge agents scored them against the brief, and the winner was revised into the spec.
+- **Build.** Parallel build agents each owned a slice of files behind frozen contracts (model, projection, server, screens). A separate reviewer agent checked each slice.
+- **Tested, not trusted.** Every engine-free check is pinned by tests that run it against the real packet.
+
+### The brief's first page
+
+Page 1 of the brief PDF is corrupt in my copy. It renders blank, and `pdftotext` returns only flate-stream errors for it. Pages 2 and 3 read fine. For what page 1 would have carried (the Evidence and Calculation requirements), I worked from the task text.
+
 ## The problem
 
 A spreadsheet workpaper stores *results*. A reviewer needs *proof*: where a number came from, who checked it, which client message changed it, how it compares with last year, and what the partner actually signed. That proof is relational, and spreadsheets lose it.
@@ -63,6 +87,18 @@ These checks run inside the same transaction that writes the act, not just in th
 | Tax totals | The tax engine can't be re-run, so every total after a change is an estimate: change × the packet's tax-effect rates (or the engine's exact what-if where one exists). It warns when combined changes cross a threshold such as the SALT cap, the child-credit phase-out or AMT. |
 | Time | A shared season clock starts at the packet's "now" and steps through the packet's own events. Documents, messages and agency letters appear when the clock reaches them. |
 
+## Not built
+
+The brief lists more than one prototype can cover. These were left out on purpose:
+
+- **Next-year roll-forward.** The Carryovers record shows what leaves 2025, but nothing creates a 2026 workpaper from this one.
+- **2026 planning view.** No screen reads the packet's `planning_reference_2026`.
+- **Amended-return forms.** After an accepted filing, a partner can open an amendment. That unfreezes the return, and later changes are tracked on top of it, but no Form 1040-X or 540X is produced.
+- **Editing firm standards.** The checks read `firm.starter_standards` from the packet, and `/firm` shows them. There is no way to change them.
+- **Cross-engagement status board.** `/firm` shows the current engagement and a Fresh copy button. There is no list of engagements and no status across them.
+- **Page-text search.** <kbd>⌘K</kbd> matches claim ids, labels and page names, not the printed text of document pages.
+- **Client-initiated messages.** Clients can reply and upload against questions addressed to them, and approve with their own PIN. They can't start a thread.
+
 ## Run it locally
 
 Requires Node 20.9+, pnpm 11 (`corepack enable`) and Docker.
@@ -114,6 +150,7 @@ acts (Postgres, append-only, hash-chained)
 data/                         the sample packet (synthetic)
 frontend/
   data/                       byte-identical copy the app reads, pinned by SHA-256
+  public/one-pager.pdf        the hand-in one-pager (served at /one-pager.pdf)
   src/lib/model/              pure, isomorphic: claims, checks/, projection, authorize, tax effects
   src/lib/server/             Postgres act log, masking, reveal logging, simulated e-file
   src/db/schema.sql           acts table, append-only trigger
