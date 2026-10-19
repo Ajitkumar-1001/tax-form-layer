@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Git-ignored demo-video scratch folders (brag.mp4 builds), not app code.
+
+  "brag-output*/**",
   ]),
 ]);
 
