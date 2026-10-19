@@ -2,10 +2,26 @@
 // The client portal's top: the demo identity picker and the household header. The only part of the portal frame
 // that reads the workspace, so portal-shell.tsx loads it in the browser and keeps the frame itself static.
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { staffReturn } from '@/components/workspace/client-gate'
 import { useWorkspace } from '@/components/workspace/context'
 
+type Click = Pick<MouseEvent, 'button' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'preventDefault'>
+
+/** "Back to staff view": a client signs in as `returnAs` first, else ClientGate bounces /overview back here. A modified click keeps the browser's own behaviour. */
+export function backToStaff(returnAs: string | null, switchIdentity: (id: string) => Promise<void>, push: (href: string) => void) {
+  return async (e: Click) => {
+    if (!returnAs || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault()
+    await switchIdentity(returnAs)
+    push('/overview')
+  }
+}
+
 export function PortalBar() {
-  const { model, viewer, identities, switchIdentity } = useWorkspace()
+  const { model, state, viewer, identities, switchIdentity } = useWorkspace()
+  const router = useRouter()
+  const returnAs = staffReturn(viewer, identities, state.clock.slice(0, 10))
   const clients = identities.filter((v) => v.kind === 'client')
   return (
     <>
@@ -27,7 +43,11 @@ export function PortalBar() {
               ))}
             </select>
           </label>
-          <Link href="/overview" className="ml-auto underline underline-offset-2">
+          <Link
+            href="/overview"
+            className="ml-auto underline underline-offset-2"
+            onClick={backToStaff(returnAs, switchIdentity, router.push)}
+          >
             Back to staff view
           </Link>
         </div>
