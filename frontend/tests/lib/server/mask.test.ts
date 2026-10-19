@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildModel } from '@/lib/model/build'
-import { parseToken, sameValue } from '@/lib/model/mask-token'
+import { parseToken, plainMasked, sameValue } from '@/lib/model/mask-token'
 import type { Packet } from '@/lib/model/packet-types'
 import { maskFact, maskPacket } from '@/lib/server/mask'
 
@@ -52,7 +52,7 @@ describe('maskPacket', () => {
   it('masks inside free text and keeps EINs clear', () => {
     const d06 = masked.documents.find((d) => d.id === 'D06')!.pages[0].printed_content
     expect(d06).toMatch(/Theo Lindqvist-Okafor SSN «ssn·3390·eq:/)
-    expect(masked.timeline.find((t) => t.id === 'tl-20')!.detail).toMatch(/Taxpayer PIN «pin·1207·eq:/)
+    expect(masked.timeline.find((t) => t.id === 'tl-20')!.detail).toMatch(/Taxpayer PIN «pin··eq:/)
     expect(masked.extracted_values.find((e) => e.id === 'ev-0014')!.value).toBe('82-4471903')
   })
 
@@ -76,7 +76,7 @@ describe('maskPacket', () => {
     expect(sameValue(organizer, masked.household.people.find((p) => p.id === 'theo')!.ssn)).toBe(true)
     expect(sameValue(d06, masked.prior_years.return_2024.dependents[1].ssn)).toBe(true)
     expect(parseToken(iban)).toMatchObject({ kind: 'account' })
-    expect(parseToken(pin)).toMatchObject({ kind: 'ip_pin', last4: '2915' })
+    expect(parseToken(pin)).toMatchObject({ kind: 'ip_pin', last4: '' })
   })
 
   it('leaves tokens the server issued alone and masks a made-up token as text', () => {
@@ -89,5 +89,25 @@ describe('maskPacket', () => {
 
   it('leaves numbers that only contain a known value alone', () => {
     expect(maskText('Ref 14829150 and 4829151', new Map())).toBe('Ref 14829150 and 4829151')
+  })
+
+  // A PIN is 5-6 digits: a last-4 tail would show nearly all of it to staff without clearance.
+  it('shows no digit of any PIN: packet tokens, free text, a corrected fact, and what the screens print', () => {
+    const pinTokens = [...json.matchAll(/«(?:pin|ip_pin)·[^»]*»/g)].map((m) => m[0])
+    expect(pinTokens.length).toBeGreaterThan(3)
+    const out = new Map()
+    const typed = maskText('Taxpayer PIN 41207, spouse PIN 88310', out)
+    const fact = maskFact('household:ngozi#ip_pin', '135790', out)
+    for (const t of [...pinTokens, typed, fact]) {
+      for (const tok of t.matchAll(/«(?:pin|ip_pin)·([^·]*)·/g)) expect(tok[1], t).toBe('')
+      expect(plainMasked(t).replace(/[^0-9]/g, ''), plainMasked(t)).toBe('')
+    }
+  })
+
+  it('still compares PINs by tag and leaves the PIN tokens it issued alone', () => {
+    const out = new Map()
+    const a = maskText('PIN 41207', out)
+    expect(maskText(a, out)).toBe(a)
+    expect(parseToken(a)!.eq).toBe(parseToken(maskText('PIN 41207', new Map()))!.eq)
   })
 })

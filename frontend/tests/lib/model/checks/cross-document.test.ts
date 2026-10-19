@@ -78,6 +78,15 @@ describe('cross-document checks on the real packet', () => {
     expect(f.expected).toBe(m.ev['ev-0012'].value)
   })
 
+  it('CHK-08 on a masked IP PIN mismatch reads as words, with no digits and no dangling "ending"', () => {
+    const p = structuredClone(packet)
+    p.household.people.find((x) => x.id === 'ngozi')!.ip_pin = '111111'
+    const fs = run(buildModel(maskPacket(p).masked), 'CHK-08')
+    const f = fs.find((x) => x.id === 'chk:CHK-08:household:ngozi#ip_pin')!
+    expect(f.why).toContain('The organizer has a masked value')
+    expect(f.why).not.toMatch(/ending\s*[;.,]|\d{4}/)
+  })
+
   it('CHK-09 checks label names and TINs against the cited page', () => {
     const fs = byId(run(m, 'CHK-09'))
     expect(Object.keys(fs).sort()).toEqual(['chk:CHK-09:F2441.1a:name', 'chk:CHK-09:F2441.1b:tin'])

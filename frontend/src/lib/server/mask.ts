@@ -27,11 +27,14 @@ const normalize = (v: string) => v.replace(/[^0-9A-Za-z]/g, '').toUpperCase()
 export const eqOf = (value: string) =>
   createHmac('sha256', maskSecret()).update(normalize(value)).digest('base64url').slice(0, 10)
 
+/** The tail a token shows: the last 4 tell SSNs and accounts apart; a PIN is 5-6 digits, so it shows none. */
+const shownTail = (kind: MaskKind, value: string) => (kind === 'pin' || kind === 'ip_pin' ? '' : normalize(value).slice(-4))
+
 /** The token for one clear value. Records the value in `out` so the server can reveal it later. */
 export function tokenize(kind: MaskKind, value: string, out: Secrets): string {
   const eq = eqOf(value)
   if (!out.has(eq)) out.set(eq, { kind, value })
-  return makeToken(kind, normalize(value).slice(-4), eq)
+  return makeToken(kind, shownTail(kind, value), eq)
 }
 
 /** Every sensitive string, from where the packet keeps it. EINs stay clear: they are not covered and checks read them. */
@@ -71,7 +74,7 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
  */
 export function issuedToken(t: MaskToken, issued: Secrets): boolean {
   const s = issued.get(t.eq)
-  return !!s && makeToken(t.kind, normalize(s.value).slice(-4), t.eq) === t.raw
+  return !!s && makeToken(t.kind, shownTail(t.kind, s.value), t.eq) === t.raw
 }
 
 /**

@@ -109,7 +109,7 @@ describe('filing desk', () => {
     expect(t).toContain('efile rejected') // packet season record, tl-21
     expect(t).toContain('R0000-504-02')
     // tl-20 prints both signature PINs; the server masks them and the season record shows the masked form.
-    expect(t).toContain('Taxpayer PIN ••••1207')
+    expect(t).toContain('Taxpayer PIN ••••')
     expect(t).not.toMatch(/PIN:? ?\d/)
   })
 

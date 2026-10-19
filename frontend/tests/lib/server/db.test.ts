@@ -127,8 +127,8 @@ describe('POST /api/acts', () => {
     const [act] = r.body.acts as Act[]
     expect(JSON.stringify(await listActs(eng))).not.toContain('135790')
     const token = act.body.to as string
-    expect(parseToken(token)).toMatchObject({ kind: 'ip_pin', last4: '5790' })
-    expect(act.body.reason).toMatch(/^New IP PIN «ip_pin·5790·eq:[^»]+» per the 2026 CP01A letter$/)
+    expect(parseToken(token)).toMatchObject({ kind: 'ip_pin', last4: '' })
+    expect(act.body.reason).toMatch(/^New IP PIN «ip_pin··eq:[^»]+» per the 2026 CP01A letter$/)
     expect(sameValue(parseToken(act.body.reason as string)!.raw, token)).toBe(true)
     const [{ sealed }] = await sql`select sealed from acts where seq = ${act.seq}`
     expect(sealed.secrets).toEqual([expect.objectContaining({ kind: 'ip_pin', value: '135790' })])
@@ -141,7 +141,7 @@ describe('POST /api/acts', () => {
     const r = await postActs('st-01', { engagement: eng, acts: [note], base_seq: 0 })
     expect(r.status).toBe(200)
     const [act] = r.body.acts as Act[]
-    expect(act.body.text).toMatch(/^Ngozi read «ip_pin·5790·eq:[^»]+» to me by phone$/)
+    expect(act.body.text).toMatch(/^Ngozi read «ip_pin··eq:[^»]+» to me by phone$/)
     expect((await stored(eng)).at(-1)!.sealed).toBeNull()
   })
 
@@ -200,7 +200,7 @@ describe('POST /api/acts', () => {
     const view = await last(e)
     expect(view.type).toBe('view_sensitive')
     expect(JSON.stringify(view)).not.toContain('246813')
-    expect(view.target).toMatch(/^household:ngozi#ip_pin «ip_pin·6813·eq:[^»]+»$/)
+    expect(view.target).toMatch(/^household:ngozi#ip_pin «ip_pin··eq:[^»]+»$/)
   })
 
   it('judges the stored token, so re-entering the current SSN in clear is refused as no change', async () => {

@@ -266,7 +266,8 @@ function identityFinding(ctx: CheckContext, person: Person, field: string, label
   const agreed = wrongThen.every((s) => sameValue(s.value, wrongThen[0].value))
   const where = [...new Set(wrongThen.map((s) => (s.ref.startsWith('py:') ? 'the 2024 return' : (ctx.ev[s.ref]?.document_id ?? s.ref.replace(/^doc:(D\d+).*/, '$1')))))]
   const sensitive = field !== 'dob'
-  const show = (v: string) => (sensitive ? `ending ${last4(v)}` : v)
+  // A masked PIN shows no tail (mask.ts), so it reads as words.
+  const show = (v: string) => (!sensitive ? v : last4(v) ? `ending ${last4(v)}` : 'a masked value')
   return {
     id: `chk:CHK-08:${claim}`,
     check: 'CHK-08',
