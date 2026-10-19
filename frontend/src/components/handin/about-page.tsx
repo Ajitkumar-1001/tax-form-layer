@@ -52,7 +52,7 @@ const RULES = [
 ]
 
 const SIMULATED: [string, string][] = [
-  ['Identity', 'The role switcher is a demo identity picker, not authentication. It sets a signed cookie; the server re-resolves role, clearance and active date on every request and enforces the rules for whoever is selected.'],
+  ['Identity', 'The role switcher is a demo identity picker, not authentication. It sets a signed cookie; the server re-resolves role, clearance and active date on every request and enforces the rules for whoever is selected. Clients are sent to the client portal in the UI, but the act log endpoint (GET /api/acts) is not yet scoped per client: it returns every act in the engagement to any identity (the sealed clear values are never included).'],
   ['E-file transmission and agency responses', 'Nothing is sent to the IRS or FTB. One disclosed rule stands in for the e-file database: if a dependent’s effective SSN differs from the SSN on the last accepted return, federal is rejected with the packet’s own error (R0000-504-02) and California is held; otherwise both are accepted. The rule reads data, not our finding status, so an override cannot fool it.'],
   ['E-signature', 'Form 8879 approval is a 5-digit PIN typed by each spouse in the client portal. It binds to the amounts hash at the time of the request; it is not an IRS-compliant e-signature.'],
   ['Notifications', 'In-app only: the inbox and the client portal. No email or SMS is sent.'],

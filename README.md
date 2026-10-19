@@ -49,7 +49,7 @@ The in-app [About](https://miraflores-workpaper-seven.vercel.app/about) page has
 
 ## Try it in two minutes
 
-The role switcher (top right) lists every staff member and both clients. It is a demo identity picker, not a login. The server still enforces the rules for whoever you pick.
+The role switcher (top right) lists every staff member and both clients. It is a demo identity picker, not a login. The server still enforces the rules for whoever you pick. Clients are sent to the client portal in the UI, but the act log endpoint (`GET /api/acts`) is not yet scoped per client: it returns every act in the engagement to any identity (the sealed clear values are never included).
 
 **Or take the guided tour:** the app offers it on your first visit, or open [`/about?tour=1`](https://miraflores-workpaper-seven.vercel.app/about?tour=1). It only looks; it never changes data.
 
