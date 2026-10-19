@@ -15,7 +15,7 @@ The brief asks for four things.
 | 1 | A working workpaper that loads the packet as delivered, saves everything and has a role switcher | **https://miraflores-workpaper-seven.vercel.app**. The packet is loaded byte for byte and pinned by SHA-256 (`frontend/src/lib/packet.ts`). Every act is a row in Postgres. The role switcher is top right. |
 | 2 | One page on the core idea and the data model | [`one-pager.pdf`](https://miraflores-workpaper-seven.vercel.app/one-pager.pdf), also in the repo at [`frontend/public/one-pager.pdf`](frontend/public/one-pager.pdf). The in-app [About](https://miraflores-workpaper-seven.vercel.app/about) page is the long version. |
 | 3 | The errors found, and how the design surfaced them | [`/errors`](https://miraflores-workpaper-seven.vercel.app/errors) lists all 70 issues. Each row shows the check that raises it, or marks it as reviewer judgment, plus its live status. The page is generated into [`frontend/src/lib/errors-map.ts`](frontend/src/lib/errors-map.ts). |
-| 4 | A video walkthrough | **Video: link to be added before submission.** |
+| 4 | A video walkthrough | [**full-tour-demo.mp4**](frontend/public/full-tour-demo.mp4) |
 
 ### How AI was used
 
