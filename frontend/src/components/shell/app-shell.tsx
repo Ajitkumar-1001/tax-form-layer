@@ -1,10 +1,11 @@
 'use client'
 // Staff shell: where you are, who you are, when it is, and what blocks filing (spec §3.0).
-import { Fragment, Suspense, type ReactNode } from 'react'
+import { Fragment, Suspense, useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { CircleCheckIcon, OctagonAlertIcon } from 'lucide-react'
 import { RefLink } from '@/components/atoms/ref-link'
+import { staffRedirect } from '@/components/workspace/client-gate'
 import { useWorkspace } from '@/components/workspace/context'
 import { PageSkeleton, TopBarSkeleton } from '@/components/workspace/skeleton'
 import { plainMasked } from '@/lib/model/mask-token'
@@ -58,6 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Suspense>
         </header>
         <Suspense>
+          <ClientGate />
           <ClientBanner />
         </Suspense>
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 scroll-mt-44 outline-none lg:scroll-mt-20">
@@ -115,6 +117,19 @@ function TopBar() {
 function HeaderSpectrum() {
   const { state } = useWorkspace()
   return <ClaimSpectrum parts={spectrum(state).parts} className="absolute inset-x-0 bottom-0 h-[3px] lg:hidden" />
+}
+
+// A client who opens a staff route directly goes to the portal (switching identity does the same in provider.tsx).
+// UX only: authorize() still refuses every staff act a client posts.
+function ClientGate() {
+  const { viewer } = useWorkspace()
+  const pathname = usePathname()
+  const router = useRouter()
+  const to = staffRedirect(viewer, pathname)
+  useEffect(() => {
+    if (to) router.replace(to)
+  }, [to, router])
+  return null
 }
 
 function ClientBanner() {

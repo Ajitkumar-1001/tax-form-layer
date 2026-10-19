@@ -17,6 +17,7 @@ import { plainMasked } from '@/lib/model/mask-token'
 import { project } from '@/lib/model/project'
 import type { State, Viewer } from '@/lib/model/state'
 import * as api from './api'
+import { staffRedirect } from './client-gate'
 import { WorkspaceContext, WorkspaceLoading } from './context'
 import { describeActs, mergeActs, offerUndo, readSeen, undoInput, writeSeen } from './log'
 import { PageSkeleton, TopBarSkeleton } from './skeleton'
@@ -204,7 +205,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setBoot(b)
     setLastSeenSeq(readSeen(b.engagement, b.viewer.id))
     toast.success(`Now acting as ${b.viewer.name}`, { description: 'Demo identity, not authentication.' })
-    if (b.viewer.kind === 'client' && !window.location.pathname.startsWith('/client')) router.push('/client')
+    const to = staffRedirect(b.viewer, window.location.pathname)
+    if (to) router.push(to)
   }
 
   function markSeen() {
